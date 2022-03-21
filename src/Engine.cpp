@@ -243,23 +243,10 @@ void Engine::makeAssets()
 	D3D12_DEPTH_STENCILOP_DESC dsopDesc{};
 	D3D12_RASTERIZER_DESC rasterDesc{};
 	D3D12_ROOT_SIGNATURE_DESC rsDesc{};
-	D3D12_ROOT_PARAMETER rootParameters[] =
-	{
-		/*
-		    D3D12_ROOT_PARAMETER_TYPE ParameterType;
-    union 
-        {
-        D3D12_ROOT_DESCRIPTOR_TABLE DescriptorTable;
-        D3D12_ROOT_CONSTANTS Constants;
-        D3D12_ROOT_DESCRIPTOR Descriptor;
-        } 	;
-    D3D12_SHADER_VISIBILITY ShaderVisibility;*/
-
-		{D3D12_ROOT_PARAMETER_TYPE::}
-	};
 
 	CD3DX12_ROOT_PARAMETER rootParameters[2];
 	
+	rootParameters[0].InitAsDescriptorTable()
 	
 	rtBlendDesc.BlendEnable = false;
 	rtBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
@@ -296,6 +283,9 @@ void Engine::makeAssets()
 	rasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 	rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
 	rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+
+	rsDesc.pParameters = rootParameters;
+	rsDesc.NumParameters = 2;
 
 	
 	D3D12SerializeRootSignature()
