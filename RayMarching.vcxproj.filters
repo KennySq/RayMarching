@@ -33,6 +33,7 @@
     <ClCompile Include="src\pch.cpp">
       <Filter>Util\Private</Filter>
     </ClCompile>
+    <ClCompile Include="src\ScreenHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Engine.h">
@@ -44,9 +45,12 @@
     <ClInclude Include="inc\ShaderHelper.hpp">
       <Filter>Util\Public</Filter>
     </ClInclude>
+    <ClInclude Include="inc\ScreenHelper.h">
+      <Filter>Util\Public</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\someShader.hlsl">
+    <None Include="assets\hlsl\ScreenQuad.hlsl">
       <Filter>Assets</Filter>
     </None>
   </ItemGroup>

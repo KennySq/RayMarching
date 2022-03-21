@@ -147,14 +147,16 @@
     <ClCompile Include="src\Engine.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\pch.cpp" />
+    <ClCompile Include="src\ScreenHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Engine.h" />
     <ClInclude Include="inc\pch.h" />
+    <ClInclude Include="inc\ScreenHelper.h" />
     <ClInclude Include="inc\ShaderHelper.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\someShader.hlsl">
+    <None Include="assets\hlsl\ScreenQuad.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
