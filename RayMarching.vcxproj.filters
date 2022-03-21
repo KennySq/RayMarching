@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Application">
+      <UniqueIdentifier>{7dc8709e-7c27-41f9-9064-836985262c39}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\Private">
+      <UniqueIdentifier>{a4da1149-e311-422c-b348-adf5a3f8e5dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\Public">
+      <UniqueIdentifier>{bef40661-47e2-4b54-ba8b-0d9f3c282dd2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Util">
+      <UniqueIdentifier>{708ae46e-95fc-4ddb-bb17-d66d6bf7f923}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Util\Private">
+      <UniqueIdentifier>{ada6c8f0-68fd-4b32-95a7-c9b17b68a81a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Util\Public">
+      <UniqueIdentifier>{8e58dd65-aae0-4bf8-8d0d-b0283d92c6c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Assets">
+      <UniqueIdentifier>{305184e4-8893-4e53-b331-c841922f1b8c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp">
+      <Filter>Application\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Engine.cpp">
+      <Filter>Application\Public</Filter>
+    </ClCompile>
+    <ClCompile Include="src\pch.cpp">
+      <Filter>Util\Private</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="inc\Engine.h">
+      <Filter>Application\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\pch.h">
+      <Filter>Util\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\ShaderHelper.hpp">
+      <Filter>Util\Public</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\someShader.hlsl">
+      <Filter>Assets</Filter>
+    </None>
+  </ItemGroup>
+</Project>
