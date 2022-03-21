@@ -53,6 +53,12 @@ private:
 	size_t RTV_HEAP_INCREMENT;
 
 	ComPtr<ID3DBlob> mVertexBlob;
+	ComPtr<ID3DBlob> mPixelBlob;
+
+	ComPtr<ID3D12RootSignature> mRootSignature;
+
+	ComPtr<ID3D12Resource> mVertexBuffer;
+	ComPtr<ID3D12Resource> mIndexBuffer;
 
 	HWND mHandle;
 
