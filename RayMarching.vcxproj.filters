@@ -34,6 +34,7 @@
       <Filter>Util\Private</Filter>
     </ClCompile>
     <ClCompile Include="src\ScreenHelper.cpp" />
+    <ClCompile Include="inc\ShaderHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Engine.h">
