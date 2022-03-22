@@ -21,8 +21,6 @@ void Engine::Start()
 	std::cout << "Engine Started\n";
 	generateHardware();
 	makeAssets();
-
-
 }
 
 void Engine::Update()
@@ -33,44 +31,71 @@ void Engine::Update()
 	result = mCmdList->Reset(mCmdAllocator.Get(), nullptr);
 	assert(result == S_OK);
 
+	D3D12_VERTEX_BUFFER_VIEW vbView;
+	D3D12_INDEX_BUFFER_VIEW ibView;
+
+	vbView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
+	vbView.SizeInBytes = sizeof(Vertex) * 4;
+	vbView.StrideInBytes = sizeof(Vertex);
+
+	ibView.BufferLocation = mIndexBuffer->GetGPUVirtualAddress();
+	ibView.SizeInBytes = sizeof(unsigned int) * 6;
+	ibView.Format = DXGI_FORMAT_R32_UINT;
+
 	D3D12_RESOURCE_TRANSITION_BARRIER transition{};
 
 	transition.pResource = mBackBuffer[mFrameIndex].Get();
 	transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 	transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 	mBackBufferBarrier.Transition = transition;
 	mBackBufferBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
 
+	D3D12_VIEWPORT viewport{};
+	viewport.Width = mWidth;
+	viewport.Height = mHeight;
+	viewport.MaxDepth = 1.0f;
+
+	D3D12_RECT scissorRect{};
+	scissorRect.right = mWidth;
+	scissorRect.bottom = mHeight;
+
+	mCmdList->RSSetViewports(1, &viewport);
+	mCmdList->RSSetScissorRects(1, &scissorRect);
+
 	mCmdList->ClearRenderTargetView(mBackBufferHandle[mFrameIndex], Colors::Red, 0, nullptr);
+
+	mCmdList->SetPipelineState(mPso.Get());
 	
+	mCmdList->IASetVertexBuffers(0, 1, &vbView);
+	mCmdList->IASetIndexBuffer(&ibView);
+	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	mCmdList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCmdList->OMSetRenderTargets(1, &mBackBufferHandle[mFrameIndex], false, nullptr);
+
+	mCmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 	transition.pResource = mBackBuffer[mFrameIndex].Get();
 	transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 	mBackBufferBarrier.Transition = transition;
 	mBackBufferBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
-
-	
 	mCmdList->Close();
-
-
-
 }
 
 void Engine::Render()
 {
 	static ID3D12CommandList* cmdLists[] = { mCmdList.Get() };
 
-
-
 	mCmdQueue->ExecuteCommandLists(1, cmdLists);
-
 
 	mSwapChain->Present(0, 0);
 
@@ -183,8 +208,13 @@ void Engine::makeAssets()
 
 	waitGPU();
 
-	result = ShaderHelper::Compile(L"someShader.hlsl", "main", "vs_5_0", mVertexBlob);
+	result = ShaderHelper::Compile(L"hlsl\\ScreenQuad.hlsl", "vert", "vs_5_0", mVertexBlob);
 	assert(result == S_OK);
+	assert(mVertexBlob != nullptr);
+
+	result = ShaderHelper::Compile(L"hlsl\\ScreenQuad.hlsl", "frag", "ps_5_0", mPixelBlob);
+	assert(result == S_OK);
+	assert(mPixelBlob != nullptr);
 
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
@@ -194,7 +224,9 @@ void Engine::makeAssets()
 	D3D12_RESOURCE_DESC vbDesc{}, ibDesc{};
 	D3D12_HEAP_PROPERTIES heapProps{};
 
-	heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+	heapProps.VisibleNodeMask = 1;
+	heapProps.CreationNodeMask = 1;
 
 	vbDesc.Format = DXGI_FORMAT_UNKNOWN;
 	vbDesc.Width = sizeof(Vertex) * 4;
@@ -216,25 +248,30 @@ void Engine::makeAssets()
 
 	D3D12_INPUT_ELEMENT_DESC inputElements[] =
 	{
-		/*
-		    LPCSTR SemanticName;
-    UINT SemanticIndex;
-    DXGI_FORMAT Format;
-    UINT InputSlot;
-    UINT AlignedByteOffset;
-    D3D12_INPUT_CLASSIFICATION InputSlotClass;
-    UINT InstanceDataStepRate;
-		*/
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
 	};
 
-	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &vbDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mVertexBuffer));
+	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &vbDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mVertexBuffer));
 	assert(result == S_OK);
 
-	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &ibDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mIndexBuffer));
+	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &ibDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mIndexBuffer));
 	assert(result == S_OK);
+
+	void* mapPtr;
+	D3D12_RANGE readRange{};
+
+	result = mVertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&mapPtr));
+	assert(result == S_OK);
+	memcpy(mapPtr, vertices.data(), sizeof(Vertex) * 4);
+	mVertexBuffer->Unmap(0, nullptr);
+
+	mapPtr = nullptr;
+
+	result = mIndexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&mapPtr));
+	assert(result == S_OK);
+	memcpy(mapPtr, indices.data(), sizeof(unsigned int) * 6);
+	mIndexBuffer->Unmap(0, nullptr);
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
 	D3D12_BLEND_DESC blendDesc{};
@@ -244,19 +281,19 @@ void Engine::makeAssets()
 	D3D12_RASTERIZER_DESC rasterDesc{};
 	D3D12_ROOT_SIGNATURE_DESC rsDesc{};
 
-	CD3DX12_ROOT_PARAMETER rootParameters[2];
-	
-	rootParameters[0].InitAsDescriptorTable()
+	CD3DX12_ROOT_PARAMETER rootParameters[2]{};
+	D3D12_DESCRIPTOR_RANGE descRange{};
 	
 	rtBlendDesc.BlendEnable = false;
 	rtBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
-	rtBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	rtBlendDesc.SrcBlend = D3D12_BLEND_ONE;
 	rtBlendDesc.DestBlend = D3D12_BLEND_ZERO;
+	rtBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	rtBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
 	rtBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	rtBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
 	rtBlendDesc.LogicOpEnable = false;
-	rtBlendDesc.LogicOp = D3D12_LOGIC_OP_AND;
-	rtBlendDesc.SrcBlend = D3D12_BLEND_ZERO;
-	rtBlendDesc.SrcBlendAlpha = D3D12_BLEND_ZERO;
+	rtBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
 	for (int i = 0; i < 8; i++)
 	{
@@ -269,45 +306,46 @@ void Engine::makeAssets()
 	inputLayoutDesc.NumElements = ARRAYSIZE(inputElements);
 	inputLayoutDesc.pInputElementDescs = inputElements;
 
-	dsopDesc.StencilDepthFailOp = D3D12_STENCIL_OP::D3D12_STENCIL_OP_REPLACE;
-	dsopDesc.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	dsopDesc.StencilFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	dsopDesc.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-
-	dsDesc.BackFace = dsopDesc;
-	dsDesc.DepthEnable = true;
-	dsDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	dsDesc.FrontFace = dsopDesc;
-
 	rasterDesc.AntialiasedLineEnable = false;
 	rasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-	rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
+	rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
 	rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	rasterDesc.DepthClipEnable = true;
 
+	rsDesc.NumParameters = 0;
 	rsDesc.pParameters = rootParameters;
-	rsDesc.NumParameters = 2;
-
+	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	
-	D3D12SerializeRootSignature()
-	result = mDevice->CreateRootSignature(0, mVertexBlob->GetBufferPointer(), mVertexBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
+	rsDesc.pParameters = nullptr;
+	rsDesc.NumParameters = 0;
+	
+	ComPtr<ID3DBlob> rsBlob, errBlob;
+
+	result = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, rsBlob.GetAddressOf(), errBlob.GetAddressOf());
+	assert(result == S_OK);
+
+	result = mDevice->CreateRootSignature(0, rsBlob->GetBufferPointer(), rsBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
 	assert(result == S_OK);
 
 	mPsoDesc.InputLayout = inputLayoutDesc;
 	mPsoDesc.BlendState = blendDesc;
 	mPsoDesc.DepthStencilState = dsDesc;
-	mPsoDesc.NumRenderTargets = 2;
+	mPsoDesc.NumRenderTargets = 1;
 	mPsoDesc.RasterizerState = rasterDesc;
 	mPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	mPsoDesc.VS = D3D12_SHADER_BYTECODE{ mVertexBlob->GetBufferPointer(), mVertexBlob->GetBufferSize() };
 	mPsoDesc.PS = D3D12_SHADER_BYTECODE{ mPixelBlob->GetBufferPointer(), mPixelBlob->GetBufferSize() };
 	mPsoDesc.SampleDesc.Count = 1;
 	mPsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	mPsoDesc.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	mPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	mPsoDesc.pRootSignature = mRootSignature.Get();
+	mPsoDesc.SampleMask = UINT_MAX;
+
+	mFrameHandle = CreateEvent(nullptr, false, false, nullptr);
+	
 	
 	result = mDevice->CreateGraphicsPipelineState(&mPsoDesc, IID_PPV_ARGS(&mPso));
-
+	assert(result == S_OK);
 }
 
 void Engine::waitGPU()

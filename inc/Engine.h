@@ -61,5 +61,4 @@ private:
 	ComPtr<ID3D12Resource> mIndexBuffer;
 
 	HWND mHandle;
-
 };
