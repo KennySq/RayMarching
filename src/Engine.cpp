@@ -4,12 +4,16 @@
 #include"ShaderHelper.hpp"
 #include"ScreenHelper.h"
 
+#include"FileBrowser.h"
+
 using namespace DirectX;
 
 Engine::Engine(HWND hWnd, unsigned int width, unsigned int height)
 	: mHandle(hWnd), mWidth(width), mHeight(height)
 {
 	AllocConsole();
+
+	
 }
 
 Engine::~Engine()
@@ -25,10 +29,109 @@ void Engine::Start()
 
 void Engine::Update()
 {
+	ImGui::NewFrame();
+	ImGui::SetNextWindowSize(ImVec2(400, 600));
+	static char buffer[8192];
+	static bool bOpenBrowser;
+	static size_t fileSize = 0;
+	static bool bCompile = true;
+
+	if (bOpenBrowser == true)
+	{
+		mFileBrowser.DisplayAssets();
+		bool bOpenFile = false;
+		std::fstream& file = mFileBrowser.GetFile();
+
+		if (file.is_open() == true)
+		{
+			ZeroMemory(buffer, 8192);
+
+			file.read(buffer, 8192);
+
+			std::string bufferString = buffer;
+			size_t size = bufferString.size();
+
+			fileSize = size;
+
+			file.close();
+		}
+	}
+	ImGui::SetNextWindowSize(ImVec2(800, 800));
+
+	ImGui::Begin("Shader Editor");
+	if (ImGui::Button("Open File"))
+	{
+		bOpenBrowser = !bOpenBrowser;
+
+		
+	}
+	if (ImGui::InputTextMultiline("Editor", buffer, 8192, ImVec2(800, 500), ImGuiInputTextFlags_AllowTabInput))
+	{
+		std::string bufferString = buffer;
+		size_t size = bufferString.size();
+
+		fileSize = size;
+	}
+
+	ImGui::Text("File Size : %d bytes", fileSize);
+	if (bCompile == false)
+	{
+		ImGui::Text("Compilation Failed, Check console log for further details.");
+	}
+	if (ImGui::Button("Compile"))
+	{
+		const std::wstring& path = mFileBrowser.GetFileName();
+
+		ComPtr<ID3DBlob> blob;
+		ShaderHelper::Compile(path.c_str(), "frag", "ps_5_0", blob);
+
+		if (blob != nullptr)
+		{
+			bCompile = true;
+			mPixelBlob.ReleaseAndGetAddressOf();
+			mPixelBlob = blob.Detach();
+
+			ComPtr<ID3D12PipelineState> pso;
+
+			mPsoDesc.PS = D3D12_SHADER_BYTECODE{ mPixelBlob->GetBufferPointer(), mPixelBlob->GetBufferSize() };
+			HRESULT result = mDevice->CreateGraphicsPipelineState(&mPsoDesc, IID_PPV_ARGS(&pso));
+			if (result != S_OK)
+			{
+				std::cout << "Something went wrong.\n";
+			}
+			else
+			{
+				mPso.ReleaseAndGetAddressOf();
+				mPso = pso.Detach();
+			}	
+		}
+		else
+		{
+			bCompile = false;
+		}
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Save"))
+	{	
+		std::ofstream file = std::ofstream(mFileBrowser.GetFilePath(), std::ofstream::out);
+
+		if (file.is_open() == true)
+		{
+			std::wcout << mFileBrowser.GetFilePath() << L" has been saved.\n";
+		}
+
+		file << buffer;
+		
+		file.close();
+	}
+
+	ImGui::End();
+	ImGui::EndFrame();
 	HRESULT result = mCmdAllocator->Reset();
 	assert(result == S_OK);
 	
-	result = mCmdList->Reset(mCmdAllocator.Get(), nullptr);
+	result = mCmdList->Reset(mCmdAllocator.Get(), mPso.Get());
 	assert(result == S_OK);
 
 	D3D12_VERTEX_BUFFER_VIEW vbView;
@@ -87,8 +190,17 @@ void Engine::Update()
 	mBackBufferBarrier.Transition = transition;
 	mBackBufferBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 
+	mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
+	ImGui::Render();
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCmdList.Get());
+
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
+	
+
+
 	mCmdList->Close();
+
+
 }
 
 void Engine::Render()
@@ -104,6 +216,9 @@ void Engine::Render()
 
 void Engine::Release()
 {
+	ImGui_ImplDX12_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+
 	std::cout << "Engine Destroy\n";
 
 }
@@ -160,6 +275,31 @@ void Engine::generateHardware()
 	result = swapChain1.As<IDXGISwapChain4>(&mSwapChain);
 	assert(result == S_OK);
 
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui::StyleColorsLight();
+	D3D12_DESCRIPTOR_HEAP_DESC cbvsrvHeapDesc{};
+
+	cbvsrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	cbvsrvHeapDesc.NumDescriptors = 1;
+	cbvsrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+	result = mDevice->CreateDescriptorHeap(&cbvsrvHeapDesc, IID_PPV_ARGS(&mCbvSrvHeap));
+	assert(result == S_OK);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cbvsrvCPUHandle = mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_GPU_DESCRIPTOR_HANDLE cbvsrvGPUHandle = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart();
+
+	bool bResult = ImGui_ImplDX12_Init(mDevice.Get(), 2, DXGI_FORMAT_R8G8B8A8_UNORM, mCbvSrvHeap.Get(), cbvsrvCPUHandle, cbvsrvGPUHandle);
+	assert(bResult == true);
+
+	bResult = ImGui_ImplWin32_Init(mHandle);
+	assert(bResult == true);
+
+	ImGui_ImplWin32_NewFrame();
+	ImGui_ImplDX12_NewFrame();
 }
 
 void Engine::generateCommands()
@@ -208,13 +348,13 @@ void Engine::makeAssets()
 
 	waitGPU();
 
-	result = ShaderHelper::Compile(L"hlsl\\ScreenQuad.hlsl", "vert", "vs_5_0", mVertexBlob);
-	assert(result == S_OK);
-	assert(mVertexBlob != nullptr);
+	result = ShaderHelper::Compile(L"ScreenQuad.hlsl", "vert", "vs_5_0", mVertexBlob);
+	//assert(result == S_OK);
+	//assert(mVertexBlob != nullptr);
 
-	result = ShaderHelper::Compile(L"hlsl\\ScreenQuad.hlsl", "frag", "ps_5_0", mPixelBlob);
-	assert(result == S_OK);
-	assert(mPixelBlob != nullptr);
+	result = ShaderHelper::Compile(L"RayMarch_0.hlsl", "frag", "ps_5_0", mPixelBlob);
+	//assert(result == S_OK);
+	//assert(mPixelBlob != nullptr);
 
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
@@ -251,6 +391,9 @@ void Engine::makeAssets()
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
 	};
+
+	mInputElements[0] = inputElements[0];
+	mInputElements[1] = inputElements[1];
 
 	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &vbDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mVertexBuffer));
 	assert(result == S_OK);
@@ -303,8 +446,8 @@ void Engine::makeAssets()
 	blendDesc.AlphaToCoverageEnable = false;
 	blendDesc.IndependentBlendEnable = false;
 
-	inputLayoutDesc.NumElements = ARRAYSIZE(inputElements);
-	inputLayoutDesc.pInputElementDescs = inputElements;
+	inputLayoutDesc.NumElements = ARRAYSIZE(mInputElements);
+	inputLayoutDesc.pInputElementDescs = mInputElements;
 
 	rasterDesc.AntialiasedLineEnable = false;
 	rasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
@@ -333,19 +476,30 @@ void Engine::makeAssets()
 	mPsoDesc.NumRenderTargets = 1;
 	mPsoDesc.RasterizerState = rasterDesc;
 	mPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	mPsoDesc.VS = D3D12_SHADER_BYTECODE{ mVertexBlob->GetBufferPointer(), mVertexBlob->GetBufferSize() };
-	mPsoDesc.PS = D3D12_SHADER_BYTECODE{ mPixelBlob->GetBufferPointer(), mPixelBlob->GetBufferSize() };
+	
+	if (mVertexBlob != nullptr)
+	{
+		mPsoDesc.VS = D3D12_SHADER_BYTECODE{ mVertexBlob->GetBufferPointer(), mVertexBlob->GetBufferSize() };
+	}
+
+	if (mPixelBlob != nullptr)
+	{
+		mPsoDesc.PS = D3D12_SHADER_BYTECODE{ mPixelBlob->GetBufferPointer(), mPixelBlob->GetBufferSize() };
+	}
+
 	mPsoDesc.SampleDesc.Count = 1;
 	mPsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	mPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	mPsoDesc.pRootSignature = mRootSignature.Get();
 	mPsoDesc.SampleMask = UINT_MAX;
 
+	result = mDevice->CreateGraphicsPipelineState(&mPsoDesc, IID_PPV_ARGS(&mPso));
+	assert(result == S_OK);
+
+
 	mFrameHandle = CreateEvent(nullptr, false, false, nullptr);
 	
 	
-	result = mDevice->CreateGraphicsPipelineState(&mPsoDesc, IID_PPV_ARGS(&mPso));
-	assert(result == S_OK);
 }
 
 void Engine::waitGPU()
