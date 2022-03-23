@@ -12,10 +12,7 @@ HRESULT ShaderHelper::Compile(const wchar_t* path, const char* entry, const char
 
 	projectPath = buffer;
 
-	projectPath = projectPath.substr(0, projectPath.find_last_of('\\'));
-	projectPath = projectPath.substr(0, projectPath.find_last_of('\\'));
-	projectPath = projectPath.substr(0, projectPath.find_last_of('\\'));
-	projectPath += L"\\assets\\";
+	projectPath = projectPath.substr(0, projectPath.find_last_of('\\') + 1);
 	projectPath += path;
 
 	ID3DBlob* errBlob = nullptr;
@@ -32,7 +29,6 @@ HRESULT ShaderHelper::Compile(const wchar_t* path, const char* entry, const char
 	{
 		std::wcout << "Compilation Failed!\n";
 		std::cout << reinterpret_cast<const char*>(errBlob->GetBufferPointer()) << '\n';
-		assert(true);
 	}
 
 	return S_OK;
