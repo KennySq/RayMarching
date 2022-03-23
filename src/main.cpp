@@ -11,8 +11,13 @@ HWND windowHandle;
 
 std::unique_ptr<Engine> engine;
 
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 LRESULT WndProc(HWND handle, unsigned int msg, WPARAM wParam, LPARAM lParam)
 {
+	if(ImGui_ImplWin32_WndProcHandler(handle, msg, wParam, lParam))
+	{
+		return true;
+	}
 	switch (msg)
 	{
 	case WM_CREATE:
