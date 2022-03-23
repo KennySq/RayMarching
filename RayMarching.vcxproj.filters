@@ -22,6 +22,15 @@
     <Filter Include="Assets">
       <UniqueIdentifier>{305184e4-8893-4e53-b331-c841922f1b8c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Libraries">
+      <UniqueIdentifier>{445c152e-2e3c-4e45-accc-383147986508}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Libraries\Private">
+      <UniqueIdentifier>{5d64eb14-dc3c-4ba1-b311-f2ae07e7e80b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Libraries\Public">
+      <UniqueIdentifier>{70242d0b-0a67-4ff6-92a4-94f410a6d626}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -35,6 +44,28 @@
     </ClCompile>
     <ClCompile Include="src\ScreenHelper.cpp" />
     <ClCompile Include="inc\ShaderHelper.cpp" />
+    <ClCompile Include="src\imgui.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui_demo.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui_draw.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui_impl_dx12.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui_impl_win32.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui_tables.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui_widgets.cpp">
+      <Filter>Libraries\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FileBrowser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\Engine.h">
@@ -49,9 +80,40 @@
     <ClInclude Include="inc\ScreenHelper.h">
       <Filter>Util\Public</Filter>
     </ClInclude>
+    <ClInclude Include="inc\imconfig.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imgui.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imgui_impl_dx12.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imgui_impl_win32.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imgui_internal.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imstb_rectpack.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imstb_textedit.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\imstb_truetype.h">
+      <Filter>Libraries\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\FileBrowser.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\hlsl\ScreenQuad.hlsl">
+      <Filter>Assets</Filter>
+    </None>
+    <None Include="assets\hlsl\RayMarch_0.hlsl">
+      <Filter>Assets</Filter>
+    </None>
+    <None Include="assets\hlsl\Essentials.hlsli">
       <Filter>Assets</Filter>
     </None>
   </ItemGroup>
