@@ -4,6 +4,12 @@
 
 #include"Essentials.hlsli"
 
+cbuffer Constants : register(b0)
+{    
+    float4x4 PaddingMatrix;
+    float FadeFactor;
+}
+
 struct Pixel
 {
     float4 Position : SV_Position;
@@ -45,6 +51,6 @@ float4 frag(Pixel input) : SV_Target0
     {
         return float4(0, 0, 0, 0);
     }
-   
+    
     return float4(1, 1, 1, 0);
 }
