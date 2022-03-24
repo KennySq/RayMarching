@@ -61,13 +61,15 @@ private:
 	ComPtr<ID3D12Resource> mVertexBuffer;
 	ComPtr<ID3D12Resource> mIndexBuffer;
 
+	ComPtr<ID3D12Resource> mConstantBuffer;
+
 	ComPtr<ID3D12DescriptorHeap> mCbvSrvHeap;
-	
+	CD3DX12_ROOT_PARAMETER mRootParameters[2]{};
+
 	std::fstream mShaderFile;
 
 	FileBrowser mFileBrowser;
 
 	D3D12_INPUT_ELEMENT_DESC mInputElements[2];
-
 	HWND mHandle;
 };

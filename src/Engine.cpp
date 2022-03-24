@@ -63,7 +63,7 @@ void Engine::Update()
 	{
 		bOpenBrowser = !bOpenBrowser;
 
-		
+
 	}
 	if (ImGui::InputTextMultiline("Editor", buffer, 8192, ImVec2(800, 500), ImGuiInputTextFlags_AllowTabInput))
 	{
@@ -103,7 +103,7 @@ void Engine::Update()
 			{
 				mPso.ReleaseAndGetAddressOf();
 				mPso = pso.Detach();
-			}	
+			}
 		}
 		else
 		{
@@ -113,7 +113,7 @@ void Engine::Update()
 
 	ImGui::SameLine();
 	if (ImGui::Button("Save"))
-	{	
+	{
 		std::ofstream file = std::ofstream(mFileBrowser.GetFilePath(), std::ofstream::out);
 
 		if (file.is_open() == true)
@@ -122,13 +122,35 @@ void Engine::Update()
 		}
 
 		file << buffer;
-		
+
 		file.close();
 	}
 
 	ImGui::End();
+
+	ImGui::Begin("Variable Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+	static float fade = 0.0f;
+	ImGui::SliderFloat("Fade", &fade, 0.1f, 3.0f, "%f", 1.0f);
+
+	D3D12_RANGE mapRange{};
+	struct cbufferData
+	{
+		XMFLOAT4X4 Padding;
+		XMFLOAT4 Fade;
+	};
+	cbufferData cData{};
+	HRESULT result = mConstantBuffer->Map(0, &mapRange, reinterpret_cast<void**>(&cData));
+	assert(result == S_OK);
+
+	cData.Fade = XMFLOAT4(fade, fade, fade, fade);
+
+	mConstantBuffer->Unmap(0, nullptr);
+
+	ImGui::End();
+
 	ImGui::EndFrame();
-	HRESULT result = mCmdAllocator->Reset();
+	result = mCmdAllocator->Reset();
 	assert(result == S_OK);
 	
 	result = mCmdList->Reset(mCmdAllocator.Get(), mPso.Get());
@@ -136,6 +158,10 @@ void Engine::Update()
 
 	D3D12_VERTEX_BUFFER_VIEW vbView;
 	D3D12_INDEX_BUFFER_VIEW ibView;
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
+
+	cbvDesc.BufferLocation = mConstantBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = sizeof(cbufferData);
 
 	vbView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
 	vbView.SizeInBytes = sizeof(Vertex) * 4;
@@ -158,8 +184,8 @@ void Engine::Update()
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
 
 	D3D12_VIEWPORT viewport{};
-	viewport.Width = mWidth;
-	viewport.Height = mHeight;
+	viewport.Width = static_cast<float>(mWidth);
+	viewport.Height = static_cast<float>(mHeight);
 	viewport.MaxDepth = 1.0f;
 
 	D3D12_RECT scissorRect{};
@@ -176,9 +202,14 @@ void Engine::Update()
 	mCmdList->IASetVertexBuffers(0, 1, &vbView);
 	mCmdList->IASetIndexBuffer(&ibView);
 	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
+	
 	mCmdList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCmdList->SetGraphicsRootConstantBufferView(1, mConstantBuffer->GetGPUVirtualAddress());
+
 	mCmdList->OMSetRenderTargets(1, &mBackBufferHandle[mFrameIndex], false, nullptr);
+
+
+	D3D12_GPU_DESCRIPTOR_HANDLE cbvgpuHandle = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart();
 
 	mCmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
@@ -283,7 +314,7 @@ void Engine::generateHardware()
 	D3D12_DESCRIPTOR_HEAP_DESC cbvsrvHeapDesc{};
 
 	cbvsrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	cbvsrvHeapDesc.NumDescriptors = 1;
+	cbvsrvHeapDesc.NumDescriptors = 2;
 	cbvsrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 	result = mDevice->CreateDescriptorHeap(&cbvsrvHeapDesc, IID_PPV_ARGS(&mCbvSrvHeap));
@@ -361,7 +392,7 @@ void Engine::makeAssets()
 
 	ScreenHelper::MakeQuad(vertices, indices);
 
-	D3D12_RESOURCE_DESC vbDesc{}, ibDesc{};
+	D3D12_RESOURCE_DESC vbDesc{}, ibDesc{}, cbDesc{};
 	D3D12_HEAP_PROPERTIES heapProps{};
 
 	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
@@ -386,6 +417,15 @@ void Engine::makeAssets()
 	ibDesc.SampleDesc.Count = 1;
 	ibDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
+	cbDesc.Format = DXGI_FORMAT_UNKNOWN;
+	cbDesc.Width = sizeof(XMFLOAT4X4) + sizeof(XMFLOAT4);
+	cbDesc.Height = 1;
+	cbDesc.DepthOrArraySize = 1;
+	cbDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	cbDesc.MipLevels = 1;
+	cbDesc.SampleDesc.Count = 1;
+	cbDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
 	D3D12_INPUT_ELEMENT_DESC inputElements[] =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -399,6 +439,9 @@ void Engine::makeAssets()
 	assert(result == S_OK);
 
 	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &ibDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mIndexBuffer));
+	assert(result == S_OK);
+
+	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &cbDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mConstantBuffer));
 	assert(result == S_OK);
 
 	void* mapPtr;
@@ -424,7 +467,7 @@ void Engine::makeAssets()
 	D3D12_RASTERIZER_DESC rasterDesc{};
 	D3D12_ROOT_SIGNATURE_DESC rsDesc{};
 
-	CD3DX12_ROOT_PARAMETER rootParameters[2]{};
+
 	D3D12_DESCRIPTOR_RANGE descRange{};
 	
 	rtBlendDesc.BlendEnable = false;
@@ -455,16 +498,23 @@ void Engine::makeAssets()
 	rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
 	rasterDesc.DepthClipEnable = true;
 
-	rsDesc.NumParameters = 0;
-	rsDesc.pParameters = rootParameters;
+	mRootParameters[0].InitAsConstantBufferView(0);
+
+	rsDesc.NumParameters = 1;
+	rsDesc.pParameters = mRootParameters;
 	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	
+	/*
 	rsDesc.pParameters = nullptr;
-	rsDesc.NumParameters = 0;
+	rsDesc.NumParameters = 0;*/
 	
 	ComPtr<ID3DBlob> rsBlob, errBlob;
 
 	result = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, rsBlob.GetAddressOf(), errBlob.GetAddressOf());
+	if (errBlob != nullptr)
+	{
+		std::cout << reinterpret_cast<const char*>(errBlob->GetBufferPointer()) << '\n';
+	}
 	assert(result == S_OK);
 
 	result = mDevice->CreateRootSignature(0, rsBlob->GetBufferPointer(), rsBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
