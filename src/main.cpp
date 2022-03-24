@@ -67,6 +67,7 @@ int __stdcall WinMain(HINSTANCE handleInst, HINSTANCE previousInstance, LPSTR cm
 	RegisterWindowClass(handleInst);
 
 	windowHandle = CreateWindow(WINDOW_CLASS, WINDOW_NAME, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, INIT_WIDTH, INIT_HEIGHT, nullptr, nullptr, handleInst, NULL);
+	windowHandle = CreateWindow(WINDOW_CLASS, WINDOW_NAME, WS_OVERLAPPEDWINDOW ^ (WS_THICKFRAME | WS_MAXIMIZEBOX), CW_USEDEFAULT, CW_USEDEFAULT, INIT_WIDTH, INIT_HEIGHT, nullptr, nullptr, handleInst, NULL);
 	DWORD lastError = GetLastError();
 	assert(windowHandle != nullptr);
 
