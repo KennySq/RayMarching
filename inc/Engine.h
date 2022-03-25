@@ -16,6 +16,11 @@ public:
 	void Render();
 	void Release();
 private:
+	struct ConstantBufferData
+	{
+		DirectX::XMFLOAT4 Fade;
+	};
+
 	void generateHardware();
 	void generateCommands();
 	void makeAssets();
@@ -47,6 +52,7 @@ private:
 
 	unsigned int mWidth;
 	unsigned int mHeight;
+	const size_t CONSTANT_BUFFER_SIZE = (sizeof(ConstantBufferData) + 255) & ~255;
 
 	ComPtr<ID3D12Resource1> mBackBuffer[2];
 	D3D12_CPU_DESCRIPTOR_HANDLE mBackBufferHandle[2];

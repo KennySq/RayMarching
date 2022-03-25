@@ -134,16 +134,12 @@ void Engine::Update()
 	ImGui::SliderFloat("Fade", &fade, 0.1f, 3.0f, "%f", 1.0f);
 
 	D3D12_RANGE mapRange{};
-	struct cbufferData
-	{
-		XMFLOAT4X4 Padding;
-		XMFLOAT4 Fade;
-	};
-	cbufferData cData{};
+
+	ConstantBufferData* cData{};
 	HRESULT result = mConstantBuffer->Map(0, &mapRange, reinterpret_cast<void**>(&cData));
 	assert(result == S_OK);
 
-	cData.Fade = XMFLOAT4(fade, fade, fade, fade);
+	cData->Fade = XMFLOAT4(fade, fade, fade, fade);
 
 	mConstantBuffer->Unmap(0, nullptr);
 
@@ -161,7 +157,7 @@ void Engine::Update()
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 
 	cbvDesc.BufferLocation = mConstantBuffer->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = sizeof(cbufferData);
+	cbvDesc.SizeInBytes = CONSTANT_BUFFER_SIZE;
 
 	vbView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
 	vbView.SizeInBytes = sizeof(Vertex) * 4;
@@ -204,10 +200,11 @@ void Engine::Update()
 	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	
 	mCmdList->SetGraphicsRootSignature(mRootSignature.Get());
-	mCmdList->SetGraphicsRootConstantBufferView(1, mConstantBuffer->GetGPUVirtualAddress());
-
+	mCmdList->SetGraphicsRootConstantBufferView(0, mConstantBuffer->GetGPUVirtualAddress());
+	
 	mCmdList->OMSetRenderTargets(1, &mBackBufferHandle[mFrameIndex], false, nullptr);
-
+	//mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
+	mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
 
 	D3D12_GPU_DESCRIPTOR_HANDLE cbvgpuHandle = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart();
 
@@ -221,7 +218,6 @@ void Engine::Update()
 	mBackBufferBarrier.Transition = transition;
 	mBackBufferBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 
-	mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
 	ImGui::Render();
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCmdList.Get());
 
@@ -418,7 +414,7 @@ void Engine::makeAssets()
 	ibDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
 	cbDesc.Format = DXGI_FORMAT_UNKNOWN;
-	cbDesc.Width = sizeof(XMFLOAT4X4) + sizeof(XMFLOAT4);
+	cbDesc.Width = CONSTANT_BUFFER_SIZE;
 	cbDesc.Height = 1;
 	cbDesc.DepthOrArraySize = 1;
 	cbDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -444,6 +440,15 @@ void Engine::makeAssets()
 	result = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &cbDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mConstantBuffer));
 	assert(result == S_OK);
 
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
+	cbvDesc.BufferLocation = mConstantBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = CONSTANT_BUFFER_SIZE;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle;
+	cbvHandle.ptr = mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	mDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
+	
 	void* mapPtr;
 	D3D12_RANGE readRange{};
 
@@ -466,7 +471,6 @@ void Engine::makeAssets()
 	D3D12_DEPTH_STENCILOP_DESC dsopDesc{};
 	D3D12_RASTERIZER_DESC rasterDesc{};
 	D3D12_ROOT_SIGNATURE_DESC rsDesc{};
-
 
 	D3D12_DESCRIPTOR_RANGE descRange{};
 	
