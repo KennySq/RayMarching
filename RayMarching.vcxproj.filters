@@ -106,15 +106,4 @@
     </ClInclude>
     <ClInclude Include="inc\FileBrowser.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="assets\hlsl\ScreenQuad.hlsl">
-      <Filter>Assets</Filter>
-    </None>
-    <None Include="assets\hlsl\RayMarch_0.hlsl">
-      <Filter>Assets</Filter>
-    </None>
-    <None Include="assets\hlsl\Essentials.hlsli">
-      <Filter>Assets</Filter>
-    </None>
-  </ItemGroup>
 </Project>
