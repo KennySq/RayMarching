@@ -2,14 +2,14 @@ struct Vertex
 {
     float4 Position : POSITION0;
     float2 Texcoord : TEXCOORD0;
-    int InstanceID : SV_InstanceID;
+    uint InstanceID : SV_InstanceID;
 };
 
 struct Pixel
 {
     float4 Position : SV_Position;
     float2 Texcoord : TEXCOORD;
-    int TargetIndex : SV_RenderTargetArrayIndex;
+    uint TargetIndex : SV_RenderTargetArrayIndex;
 };
 
 Pixel vert(Vertex input)
@@ -24,5 +24,5 @@ Pixel vert(Vertex input)
 
 float4 frag(Pixel input) : SV_Target0
 {
-    return float4(1, 0, 0, 0);   
+    return float4(1, 0, 0, 0);
 }
