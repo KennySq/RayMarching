@@ -48,6 +48,7 @@ void Engine::Start()
 	textureDesc.MipLevels = 1;
 	textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	textureDesc.SampleDesc.Count = 1;
+	textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	D3D12_HEAP_PROPERTIES heapProp{};
 
@@ -61,6 +62,8 @@ void Engine::Start()
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
 	cpuHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
 	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &srvDesc, cpuHandle);
@@ -70,17 +73,35 @@ void Engine::Start()
 	il.NumElements = ARRAYSIZE(mInputElements);
 	il.pInputElementDescs = mInputElements;
 
+	CD3DX12_ROOT_SIGNATURE_DESC textureRSDesc{};
+
+	textureRSDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	ComPtr<ID3DBlob> errBlob;
+
+	result = D3D12SerializeRootSignature(&textureRSDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, mTextureRSBlob.GetAddressOf(), errBlob.GetAddressOf());
+	if (result != S_OK)
+	{
+		std::cout << reinterpret_cast<const char*>(errBlob->GetBufferPointer()) << '\n';
+	}
+	assert(result == S_OK);
+
+	result = mDevice->CreateRootSignature(0, mTextureRSBlob->GetBufferPointer(), mTextureRSBlob->GetBufferSize(), IID_PPV_ARGS(&mTextureRS));
+	assert(result == S_OK);
+
 	mTexturePsoDesc.InputLayout = il;
 	mTexturePsoDesc.BlendState = mBlendDesc;
 	mTexturePsoDesc.DepthStencilState = mDsDesc;
 	mTexturePsoDesc.NumRenderTargets = 1;
+	mTexturePsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	mTexturePsoDesc.pRootSignature = mTextureRS.Get();
 	mTexturePsoDesc.RasterizerState = mRasterDesc;
 	mTexturePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	mTexturePsoDesc.SampleDesc.Count = 1;
 
-	D3D12_SHADER_BYTECODE vertexShader, pixelShader, geometryShader;
+	D3D12_SHADER_BYTECODE vertexShader, pixelShader;
 
-	vertexShader.BytecodeLength = mVertexBlob->GetBufferSize();
-	vertexShader.pShaderBytecode = mVertexBlob->GetBufferPointer();
+	vertexShader.BytecodeLength = mTextureVS->GetBufferSize();
+	vertexShader.pShaderBytecode = mTextureVS->GetBufferPointer();
 
 	pixelShader.BytecodeLength = mTexturePS->GetBufferSize();
 	pixelShader.pShaderBytecode = mTexturePS->GetBufferPointer();
@@ -95,6 +116,19 @@ void Engine::Start()
 
 	generalRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	generalRTVHeapDesc.NumDescriptors = 1;
+
+	result = mDevice->CreateDescriptorHeap(&generalRTVHeapDesc, IID_PPV_ARGS(&mGeneralRTVHeap));
+	assert(result == S_OK);
+
+	D3D12_RENDER_TARGET_VIEW_DESC textureRTVDesc{};
+
+	textureRTVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureRTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE3D;
+	textureRTVDesc.Texture3D.WSize = 512;
+	textureRTVDesc.Texture3D.MipSlice = 0;
+	mTextureRTVHandle = mGeneralRTVHeap->GetCPUDescriptorHandleForHeapStart();
+
+	mDevice->CreateRenderTargetView(mCloudTexture.Get(), &textureRTVDesc, mTextureRTVHandle);
 }
 
 void Engine::Update()
@@ -243,13 +277,16 @@ void Engine::Update()
 		}
 		if (ImGui::Button("Generate"))
 		{
+			static ID3D12CommandList* cmdLists[] = { mCmdList.Get() };
+			HRESULT result = mCmdAllocator->Reset();
+			result = mCmdList->Reset(mCmdAllocator.Get(), nullptr);
+
 			mTextureRTVHandle = mGeneralRTVHeap->GetCPUDescriptorHandleForHeapStart();
-			mCmdList->OMSetRenderTargets(1, &mTextureRTVHandle, false, nullptr);
 			
 			D3D12_RESOURCE_BARRIER textureBarrier{};
 			D3D12_RESOURCE_TRANSITION_BARRIER transition{};
 
-			transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 			transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 			transition.pResource = mCloudTexture.Get();
 
@@ -267,8 +304,12 @@ void Engine::Update()
 			mCmdList->RSSetViewports(1, &mTextureViewport);
 			mCmdList->RSSetScissorRects(1, &mTextureScissorRect);
 
-			mCmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+			mCmdList->SetGraphicsRootSignature(mTextureRS.Get());
+			mCmdList->SetPipelineState(mTexturePso.Get());
 
+			mCmdList->OMSetRenderTargets(1, &mTextureRTVHandle, false, nullptr);
+			
+			mCmdList->DrawIndexedInstanced(6, 512, 0, 0, 0);
 
 			transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 			transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
@@ -279,6 +320,11 @@ void Engine::Update()
 
 			mCmdList->ResourceBarrier(1, &textureBarrier);
 
+			mCmdList->Close();
+
+			mCmdQueue->ExecuteCommandLists(1, cmdLists);
+
+			waitGPU();
 		}
 
 		ImGui::End();

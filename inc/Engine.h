@@ -82,7 +82,6 @@ private:
 	ComPtr<ID3D12Resource> mCloudTexture;
 	ComPtr<ID3D12PipelineState> mTexturePso;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC mTexturePsoDesc;
-	ComPtr<ID3D12RootSignature> mTextureRootSign;
 	D3D12_INPUT_ELEMENT_DESC mTextureIL[3];
 
 	D3D12_BLEND_DESC mBlendDesc{};
@@ -93,6 +92,8 @@ private:
 
 	ComPtr<ID3DBlob> mTextureVS;
 	ComPtr<ID3DBlob> mTexturePS;
+	ComPtr<ID3DBlob> mTextureRSBlob;
+	ComPtr<ID3D12RootSignature> mTextureRS;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mTextureRTVHandle;
 	ComPtr<ID3D12DescriptorHeap> mGeneralRTVHeap;
