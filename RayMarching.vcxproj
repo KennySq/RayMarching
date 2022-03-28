@@ -189,6 +189,11 @@
     <ClInclude Include="inc\ScreenHelper.h" />
     <ClInclude Include="inc\ShaderHelper.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\hlsl\PerlinNoise.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
