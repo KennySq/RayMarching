@@ -13,7 +13,6 @@ Engine::Engine(HWND hWnd, unsigned int width, unsigned int height)
 {
 	AllocConsole();
 
-	
 }
 
 Engine::~Engine()
@@ -25,6 +24,77 @@ void Engine::Start()
 	std::cout << "Engine Started\n";
 	generateHardware();
 	makeAssets();
+
+	SRV_HEAP_INCREMENT = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	RTV_HEAP_INCREMENT = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+	mTextureIL[0] = { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
+	mTextureIL[1] = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
+
+	HRESULT result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "frag", "ps_5_0", mTexturePS);
+	assert(result == S_OK);
+
+	result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "vert", "vs_5_0", mTextureVS);
+	assert(result == S_OK);
+
+	D3D12_RESOURCE_DESC textureDesc{};
+
+	textureDesc.Width = 512;
+	textureDesc.Height = 512;
+	textureDesc.DepthOrArraySize = 512;
+	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.MipLevels = 1;
+	textureDesc.MipLevels = 1;
+	textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	textureDesc.SampleDesc.Count = 1;
+
+	D3D12_HEAP_PROPERTIES heapProp{};
+
+	heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
+	heapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	
+	result = mDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&mCloudTexture));
+	assert(result == S_OK);
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
+	cpuHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
+	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &srvDesc, cpuHandle);
+
+	D3D12_INPUT_LAYOUT_DESC il;
+
+	il.NumElements = ARRAYSIZE(mInputElements);
+	il.pInputElementDescs = mInputElements;
+
+	mTexturePsoDesc.InputLayout = il;
+	mTexturePsoDesc.BlendState = mBlendDesc;
+	mTexturePsoDesc.DepthStencilState = mDsDesc;
+	mTexturePsoDesc.NumRenderTargets = 1;
+	mTexturePsoDesc.RasterizerState = mRasterDesc;
+	mTexturePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+	D3D12_SHADER_BYTECODE vertexShader, pixelShader, geometryShader;
+
+	vertexShader.BytecodeLength = mVertexBlob->GetBufferSize();
+	vertexShader.pShaderBytecode = mVertexBlob->GetBufferPointer();
+
+	pixelShader.BytecodeLength = mTexturePS->GetBufferSize();
+	pixelShader.pShaderBytecode = mTexturePS->GetBufferPointer();
+
+	mTexturePsoDesc.VS = vertexShader;
+	mTexturePsoDesc.PS = pixelShader;
+
+	result = mDevice->CreateGraphicsPipelineState(&mTexturePsoDesc, IID_PPV_ARGS(&mTexturePso));
+	assert(result == S_OK);
+
+	D3D12_DESCRIPTOR_HEAP_DESC generalRTVHeapDesc{};
+
+	generalRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	generalRTVHeapDesc.NumDescriptors = 1;
 }
 
 void Engine::Update()
@@ -35,6 +105,8 @@ void Engine::Update()
 	static bool bOpenBrowser;
 	static size_t fileSize = 0;
 	static bool bCompile = true;
+	static bool bOpenShaderEditor;
+	static bool bOpenTextureGenerator;
 
 	if (bOpenBrowser == true)
 	{
@@ -58,80 +130,164 @@ void Engine::Update()
 	}
 	ImGui::SetNextWindowSize(ImVec2(800, 800));
 
-	ImGui::Begin("Shader Editor");
-	if (ImGui::Button("Open File"))
+	ImGui::BeginMainMenuBar();
+	if (ImGui::BeginMenu("Menu"))
 	{
-		bOpenBrowser = !bOpenBrowser;
-
-
-	}
-	if (ImGui::InputTextMultiline("Editor", buffer, 8192, ImVec2(800, 500), ImGuiInputTextFlags_AllowTabInput))
-	{
-		std::string bufferString = buffer;
-		size_t size = bufferString.size();
-
-		fileSize = size;
-	}
-
-	ImGui::Text("File Size : %d bytes", fileSize);
-	if (bCompile == false)
-	{
-		ImGui::Text("Compilation Failed, Check console log for further details.");
-	}
-	if (ImGui::Button("Compile"))
-	{
-		const std::wstring& path = mFileBrowser.GetFileName();
-
-		ComPtr<ID3DBlob> blob;
-		ShaderHelper::Compile(path.c_str(), "frag", "ps_5_0", blob);
-
-		if (blob != nullptr)
+		if (ImGui::MenuItem("Shader Editor", nullptr, &bOpenShaderEditor))
 		{
-			bCompile = true;
-			mPixelBlob.ReleaseAndGetAddressOf();
-			mPixelBlob = blob.Detach();
+		}
+		if (ImGui::MenuItem("Texture Generator", nullptr, &bOpenTextureGenerator))
+		{
+		}
 
-			ComPtr<ID3D12PipelineState> pso;
+		ImGui::EndMenu();
+	}
+	ImGui::EndMainMenuBar();
 
-			mPsoDesc.PS = D3D12_SHADER_BYTECODE{ mPixelBlob->GetBufferPointer(), mPixelBlob->GetBufferSize() };
-			HRESULT result = mDevice->CreateGraphicsPipelineState(&mPsoDesc, IID_PPV_ARGS(&pso));
-			if (result != S_OK)
+	if (bOpenShaderEditor == true)
+	{
+		ImGui::Begin("Shader Editor");
+		if (ImGui::Button("Open File"))
+		{
+			bOpenBrowser = !bOpenBrowser;
+
+
+		}
+		if (ImGui::InputTextMultiline("Editor", buffer, 8192, ImVec2(800, 500), ImGuiInputTextFlags_AllowTabInput))
+		{
+			std::string bufferString = buffer;
+			size_t size = bufferString.size();
+
+			fileSize = size;
+		}
+
+		ImGui::Text("File Size : %d bytes", fileSize);
+		if (bCompile == false)
+		{
+			ImGui::Text("Compilation Failed, Check console log for further details.");
+		}
+		if (ImGui::Button("Compile"))
+		{
+			std::ofstream file = std::ofstream(mFileBrowser.GetFilePath(), std::ofstream::out);
+
+			if (file.is_open() == true)
 			{
-				std::cout << "Something went wrong.\n";
+				std::wcout << mFileBrowser.GetFilePath() << L" has been saved.\n";
+			}
+
+			file << buffer;
+
+			file.close();
+
+			const std::wstring& path = mFileBrowser.GetFileName();
+
+			ComPtr<ID3DBlob> blob;
+			ShaderHelper::Compile(path.c_str(), "frag", "ps_5_0", blob);
+
+			if (blob != nullptr)
+			{
+				bCompile = true;
+				mPixelBlob.ReleaseAndGetAddressOf();
+				mPixelBlob = blob.Detach();
+
+				ComPtr<ID3D12PipelineState> pso;
+
+				mPsoDesc.PS = D3D12_SHADER_BYTECODE{ mPixelBlob->GetBufferPointer(), mPixelBlob->GetBufferSize() };
+				HRESULT result = mDevice->CreateGraphicsPipelineState(&mPsoDesc, IID_PPV_ARGS(&pso));
+				if (result != S_OK)
+				{
+					std::cout << "Something went wrong.\n";
+				}
+				else
+				{
+					mPso.ReleaseAndGetAddressOf();
+					mPso = pso.Detach();
+				}
 			}
 			else
 			{
-				mPso.ReleaseAndGetAddressOf();
-				mPso = pso.Detach();
+				bCompile = false;
 			}
 		}
-		else
+
+		ImGui::SameLine();
+		if (ImGui::Button("Save"))
 		{
-			bCompile = false;
+			std::ofstream file = std::ofstream(mFileBrowser.GetFilePath(), std::ofstream::out);
+
+			if (file.is_open() == true)
+			{
+				std::wcout << mFileBrowser.GetFilePath() << L" has been saved.\n";
+			}
+
+			file << buffer;
+
+			file.close();
 		}
+
+		ImGui::End();
 	}
 
-	ImGui::SameLine();
-	if (ImGui::Button("Save"))
+	if (bOpenTextureGenerator)
 	{
-		std::ofstream file = std::ofstream(mFileBrowser.GetFilePath(), std::ofstream::out);
+		ImGui::SetNextWindowSize(ImVec2(400, 300));
+		ImGui::Begin("Texture Generator");
 
-		if (file.is_open() == true)
+		if (ImGui::Button("Recompile Shader"))
 		{
-			std::wcout << mFileBrowser.GetFilePath() << L" has been saved.\n";
+			HRESULT result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "frag", "ps_5_0", mTexturePS);
+			assert(result == S_OK);
+
+			result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "vert", "vs_5_0", mTextureVS);
+			assert(result == S_OK);
+		}
+		if (ImGui::Button("Generate"))
+		{
+			mTextureRTVHandle = mGeneralRTVHeap->GetCPUDescriptorHandleForHeapStart();
+			mCmdList->OMSetRenderTargets(1, &mTextureRTVHandle, false, nullptr);
+			
+			D3D12_RESOURCE_BARRIER textureBarrier{};
+			D3D12_RESOURCE_TRANSITION_BARRIER transition{};
+
+			transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			transition.pResource = mCloudTexture.Get();
+
+			textureBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			textureBarrier.Transition = transition;
+			
+			mCmdList->ResourceBarrier(1, &textureBarrier);
+
+			mCmdList->ClearRenderTargetView(mTextureRTVHandle, Colors::Green, 0, nullptr);
+
+			mCmdList->IASetIndexBuffer(&mIndexBufferView);
+			mCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView);
+			mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			mCmdList->RSSetViewports(1, &mTextureViewport);
+			mCmdList->RSSetScissorRects(1, &mTextureScissorRect);
+
+			mCmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+
+
+			transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			transition.pResource = mCloudTexture.Get();
+
+			textureBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			textureBarrier.Transition = transition;
+
+			mCmdList->ResourceBarrier(1, &textureBarrier);
+
 		}
 
-		file << buffer;
-
-		file.close();
+		ImGui::End();
 	}
-
-	ImGui::End();
 
 	ImGui::Begin("Variable Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
 	static float fade = 0.0f;
-	ImGui::SliderFloat("Fade", &fade, 0.1f, 3.0f, "%f", 1.0f);
+	ImGui::SliderFloat("Fade", &fade, -3.0f, 3.0f, "%f", 1.0f);
 
 	D3D12_RANGE mapRange{};
 
@@ -148,24 +304,23 @@ void Engine::Update()
 	ImGui::EndFrame();
 	result = mCmdAllocator->Reset();
 	assert(result == S_OK);
-	
+
 	result = mCmdList->Reset(mCmdAllocator.Get(), mPso.Get());
 	assert(result == S_OK);
 
-	D3D12_VERTEX_BUFFER_VIEW vbView;
-	D3D12_INDEX_BUFFER_VIEW ibView;
+
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 
 	cbvDesc.BufferLocation = mConstantBuffer->GetGPUVirtualAddress();
 	cbvDesc.SizeInBytes = CONSTANT_BUFFER_SIZE;
 
-	vbView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
-	vbView.SizeInBytes = sizeof(Vertex) * 4;
-	vbView.StrideInBytes = sizeof(Vertex);
+	mVertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
+	mVertexBufferView.SizeInBytes = sizeof(Vertex) * 4;
+	mVertexBufferView.StrideInBytes = sizeof(Vertex);
 
-	ibView.BufferLocation = mIndexBuffer->GetGPUVirtualAddress();
-	ibView.SizeInBytes = sizeof(unsigned int) * 6;
-	ibView.Format = DXGI_FORMAT_R32_UINT;
+	mIndexBufferView.BufferLocation = mIndexBuffer->GetGPUVirtualAddress();
+	mIndexBufferView.SizeInBytes = sizeof(unsigned int) * 6;
+	mIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
 
 	D3D12_RESOURCE_TRANSITION_BARRIER transition{};
 
@@ -176,32 +331,37 @@ void Engine::Update()
 
 	mBackBufferBarrier.Transition = transition;
 	mBackBufferBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	
+
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
 
-	D3D12_VIEWPORT viewport{};
-	viewport.Width = static_cast<float>(mWidth);
-	viewport.Height = static_cast<float>(mHeight);
-	viewport.MaxDepth = 1.0f;
+	mMainViewport.Width = static_cast<float>(mWidth);
+	mMainViewport.Height = static_cast<float>(mHeight);
+	mMainViewport.MaxDepth = 1.0f;
 
-	D3D12_RECT scissorRect{};
-	scissorRect.right = mWidth;
-	scissorRect.bottom = mHeight;
+	mTextureViewport.Width = static_cast<float>(512);
+	mTextureViewport.Height = static_cast<float>(512);
+	mTextureViewport.MaxDepth = 1.0f;
 
-	mCmdList->RSSetViewports(1, &viewport);
-	mCmdList->RSSetScissorRects(1, &scissorRect);
+	mMainScissorRect.right = mWidth;
+	mMainScissorRect.bottom = mHeight;
+
+	mTextureScissorRect.right = 512;
+	mTextureScissorRect.bottom = 512;
+
+	mCmdList->RSSetViewports(1, &mMainViewport);
+	mCmdList->RSSetScissorRects(1, &mMainScissorRect);
 
 	mCmdList->ClearRenderTargetView(mBackBufferHandle[mFrameIndex], Colors::Red, 0, nullptr);
 
 	mCmdList->SetPipelineState(mPso.Get());
-	
-	mCmdList->IASetVertexBuffers(0, 1, &vbView);
-	mCmdList->IASetIndexBuffer(&ibView);
+
+	mCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView);
+	mCmdList->IASetIndexBuffer(&mIndexBufferView);
 	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	
+
 	mCmdList->SetGraphicsRootSignature(mRootSignature.Get());
 	mCmdList->SetGraphicsRootConstantBufferView(0, mConstantBuffer->GetGPUVirtualAddress());
-	
+
 	mCmdList->OMSetRenderTargets(1, &mBackBufferHandle[mFrameIndex], false, nullptr);
 	//mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
 	mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
@@ -222,7 +382,7 @@ void Engine::Update()
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCmdList.Get());
 
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
-	
+
 
 
 	mCmdList->Close();
@@ -281,7 +441,7 @@ void Engine::generateHardware()
 	assert(result == S_OK);
 
 	DXGI_SWAP_CHAIN_DESC1 scDesc{};
-	
+
 	scDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 	scDesc.BufferCount = 2;
 	scDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -298,7 +458,7 @@ void Engine::generateHardware()
 
 	result = mFactory->CreateSwapChainForHwnd(mCmdQueue.Get(), mHandle, &scDesc, nullptr, nullptr, swapChain1.GetAddressOf());
 	assert(result == S_OK);
-		
+
 	result = swapChain1.As<IDXGISwapChain4>(&mSwapChain);
 	assert(result == S_OK);
 
@@ -310,7 +470,7 @@ void Engine::generateHardware()
 	D3D12_DESCRIPTOR_HEAP_DESC cbvsrvHeapDesc{};
 
 	cbvsrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	cbvsrvHeapDesc.NumDescriptors = 2;
+	cbvsrvHeapDesc.NumDescriptors = 3;
 	cbvsrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 	result = mDevice->CreateDescriptorHeap(&cbvsrvHeapDesc, IID_PPV_ARGS(&mCbvSrvHeap));
@@ -448,7 +608,7 @@ void Engine::makeAssets()
 	cbvHandle.ptr = mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	mDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
-	
+
 	void* mapPtr;
 	D3D12_RANGE readRange{};
 
@@ -465,53 +625,48 @@ void Engine::makeAssets()
 	mIndexBuffer->Unmap(0, nullptr);
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
-	D3D12_BLEND_DESC blendDesc{};
-	D3D12_RENDER_TARGET_BLEND_DESC rtBlendDesc{};
-	D3D12_DEPTH_STENCIL_DESC dsDesc{};
-	D3D12_DEPTH_STENCILOP_DESC dsopDesc{};
-	D3D12_RASTERIZER_DESC rasterDesc{};
 	D3D12_ROOT_SIGNATURE_DESC rsDesc{};
 
 	D3D12_DESCRIPTOR_RANGE descRange{};
-	
-	rtBlendDesc.BlendEnable = false;
-	rtBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
-	rtBlendDesc.SrcBlend = D3D12_BLEND_ONE;
-	rtBlendDesc.DestBlend = D3D12_BLEND_ZERO;
-	rtBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	rtBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
-	rtBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
-	rtBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
-	rtBlendDesc.LogicOpEnable = false;
-	rtBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	mRtBlendDesc.BlendEnable = false;
+	mRtBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	mRtBlendDesc.SrcBlend = D3D12_BLEND_ONE;
+	mRtBlendDesc.DestBlend = D3D12_BLEND_ZERO;
+	mRtBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	mRtBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	mRtBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	mRtBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	mRtBlendDesc.LogicOpEnable = false;
+	mRtBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
 	for (int i = 0; i < 8; i++)
 	{
-		blendDesc.RenderTarget[i] = rtBlendDesc;
+		mBlendDesc.RenderTarget[i] = mRtBlendDesc;
 	}
 
-	blendDesc.AlphaToCoverageEnable = false;
-	blendDesc.IndependentBlendEnable = false;
+	mBlendDesc.AlphaToCoverageEnable = false;
+	mBlendDesc.IndependentBlendEnable = false;
 
 	inputLayoutDesc.NumElements = ARRAYSIZE(mInputElements);
 	inputLayoutDesc.pInputElementDescs = mInputElements;
 
-	rasterDesc.AntialiasedLineEnable = false;
-	rasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-	rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
-	rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-	rasterDesc.DepthClipEnable = true;
+	mRasterDesc.AntialiasedLineEnable = false;
+	mRasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	mRasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+	mRasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	mRasterDesc.DepthClipEnable = true;
 
 	mRootParameters[0].InitAsConstantBufferView(0);
 
 	rsDesc.NumParameters = 1;
 	rsDesc.pParameters = mRootParameters;
 	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	
+
 	/*
 	rsDesc.pParameters = nullptr;
 	rsDesc.NumParameters = 0;*/
-	
+
 	ComPtr<ID3DBlob> rsBlob, errBlob;
 
 	result = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, rsBlob.GetAddressOf(), errBlob.GetAddressOf());
@@ -525,12 +680,12 @@ void Engine::makeAssets()
 	assert(result == S_OK);
 
 	mPsoDesc.InputLayout = inputLayoutDesc;
-	mPsoDesc.BlendState = blendDesc;
-	mPsoDesc.DepthStencilState = dsDesc;
+	mPsoDesc.BlendState = mBlendDesc;
+	mPsoDesc.DepthStencilState = mDsDesc;
 	mPsoDesc.NumRenderTargets = 1;
-	mPsoDesc.RasterizerState = rasterDesc;
+	mPsoDesc.RasterizerState = mRasterDesc;
 	mPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	
+
 	if (mVertexBlob != nullptr)
 	{
 		mPsoDesc.VS = D3D12_SHADER_BYTECODE{ mVertexBlob->GetBufferPointer(), mVertexBlob->GetBufferSize() };
@@ -552,8 +707,8 @@ void Engine::makeAssets()
 
 
 	mFrameHandle = CreateEvent(nullptr, false, false, nullptr);
-	
-	
+
+
 }
 
 void Engine::waitGPU()
@@ -569,7 +724,7 @@ void Engine::waitGPU()
 		mFrameFence->SetEventOnCompletion(frameIndex, mFrameHandle);
 		WaitForSingleObject(mFrameHandle, INFINITE);
 	}
-	
+
 	mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
 
 	return;

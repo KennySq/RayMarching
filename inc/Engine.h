@@ -58,7 +58,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mBackBufferHandle[2];
 
 	size_t RTV_HEAP_INCREMENT;
-
+	size_t SRV_HEAP_INCREMENT;
 	ComPtr<ID3DBlob> mVertexBlob;
 	ComPtr<ID3DBlob> mPixelBlob;
 
@@ -70,7 +70,7 @@ private:
 	ComPtr<ID3D12Resource> mConstantBuffer;
 
 	ComPtr<ID3D12DescriptorHeap> mCbvSrvHeap;
-	CD3DX12_ROOT_PARAMETER mRootParameters[2]{};
+	CD3DX12_ROOT_PARAMETER mRootParameters[3]{};
 
 	std::fstream mShaderFile;
 
@@ -78,4 +78,31 @@ private:
 
 	D3D12_INPUT_ELEMENT_DESC mInputElements[2];
 	HWND mHandle;
+
+	ComPtr<ID3D12Resource> mCloudTexture;
+	ComPtr<ID3D12PipelineState> mTexturePso;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC mTexturePsoDesc;
+	ComPtr<ID3D12RootSignature> mTextureRootSign;
+	D3D12_INPUT_ELEMENT_DESC mTextureIL[3];
+
+	D3D12_BLEND_DESC mBlendDesc{};
+	D3D12_RASTERIZER_DESC mRasterDesc{};
+	D3D12_DEPTH_STENCIL_DESC mDsDesc{};
+	D3D12_DEPTH_STENCILOP_DESC mDsOpDesc{};
+	D3D12_RENDER_TARGET_BLEND_DESC mRtBlendDesc{};
+
+	ComPtr<ID3DBlob> mTextureVS;
+	ComPtr<ID3DBlob> mTexturePS;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE mTextureRTVHandle;
+	ComPtr<ID3D12DescriptorHeap> mGeneralRTVHeap;
+
+	D3D12_INDEX_BUFFER_VIEW mIndexBufferView;
+	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView;
+
+	D3D12_VIEWPORT mMainViewport{};
+	D3D12_VIEWPORT mTextureViewport{};
+
+	D3D12_RECT mMainScissorRect{};
+	D3D12_RECT mTextureScissorRect{};
 };
