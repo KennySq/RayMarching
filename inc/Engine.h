@@ -98,6 +98,9 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mTextureRTVHandle;
 	ComPtr<ID3D12DescriptorHeap> mGeneralRTVHeap;
 
+	D3D12_CPU_DESCRIPTOR_HANDLE mTextureSRVHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTexturePreviewSRVHandle;
+
 	D3D12_INDEX_BUFFER_VIEW mIndexBufferView;
 	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView;
 

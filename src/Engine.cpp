@@ -25,10 +25,24 @@ void Engine::Start()
 	generateHardware();
 	makeAssets();
 
+	mMainViewport.Width = static_cast<float>(mWidth);
+	mMainViewport.Height = static_cast<float>(mHeight);
+	mMainViewport.MaxDepth = 1.0f;
+
+	mTextureViewport.Width = static_cast<float>(512);
+	mTextureViewport.Height = static_cast<float>(512);
+	mTextureViewport.MaxDepth = 1.0f;
+
+	mMainScissorRect.right = mWidth;
+	mMainScissorRect.bottom = mHeight;
+
+	mTextureScissorRect.right = 512;
+	mTextureScissorRect.bottom = 512;
+
 	SRV_HEAP_INCREMENT = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	RTV_HEAP_INCREMENT = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-	mTextureIL[0] = { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
+	mTextureIL[0] = { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
 	mTextureIL[1] = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
 
 	HRESULT result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "frag", "ps_5_0", mTexturePS);
@@ -44,8 +58,7 @@ void Engine::Start()
 	textureDesc.DepthOrArraySize = 512;
 	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
 	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	textureDesc.MipLevels = 1;
-	textureDesc.MipLevels = 1;
+	textureDesc.MipLevels = 0;
 	textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	textureDesc.SampleDesc.Count = 1;
 	textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -58,15 +71,22 @@ void Engine::Start()
 	result = mDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&mCloudTexture));
 	assert(result == S_OK);
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{}, previewSrvDesc{};
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture3D.MipLevels = 1;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
-	cpuHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
-	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &srvDesc, cpuHandle);
+	previewSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	previewSrvDesc.Texture3D.MipLevels = 1;
+	previewSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+	previewSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+	mTextureSRVHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
+	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &srvDesc, mTextureSRVHandle);
+
+	mTexturePreviewSRVHandle.ptr = mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
+	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &previewSrvDesc, mTexturePreviewSRVHandle);
 
 	D3D12_INPUT_LAYOUT_DESC il;
 
@@ -91,6 +111,7 @@ void Engine::Start()
 	mTexturePsoDesc.InputLayout = il;
 	mTexturePsoDesc.BlendState = mBlendDesc;
 	mTexturePsoDesc.DepthStencilState = mDsDesc;
+	mTexturePsoDesc.DepthStencilState.DepthEnable = false;
 	mTexturePsoDesc.NumRenderTargets = 1;
 	mTexturePsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	mTexturePsoDesc.pRootSignature = mTextureRS.Get();
@@ -125,10 +146,69 @@ void Engine::Start()
 	textureRTVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	textureRTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE3D;
 	textureRTVDesc.Texture3D.WSize = 512;
-	textureRTVDesc.Texture3D.MipSlice = 0;
+
 	mTextureRTVHandle = mGeneralRTVHeap->GetCPUDescriptorHandleForHeapStart();
 
 	mDevice->CreateRenderTargetView(mCloudTexture.Get(), &textureRTVDesc, mTextureRTVHandle);
+
+	mVertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
+	mVertexBufferView.SizeInBytes = sizeof(Vertex) * 4;
+	mVertexBufferView.StrideInBytes = sizeof(Vertex);
+
+	mIndexBufferView.BufferLocation = mIndexBuffer->GetGPUVirtualAddress();
+	mIndexBufferView.SizeInBytes = sizeof(unsigned int) * 6;
+	mIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+
+	// from
+
+	static ID3D12CommandList* cmdLists[] = { mCmdList.Get() };
+	result = mCmdAllocator->Reset();
+	result = mCmdList->Reset(mCmdAllocator.Get(), nullptr);
+
+	mTextureRTVHandle = mGeneralRTVHeap->GetCPUDescriptorHandleForHeapStart();
+
+	D3D12_RESOURCE_BARRIER textureBarrier{};
+	D3D12_RESOURCE_TRANSITION_BARRIER transition{};
+
+	transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	transition.pResource = mCloudTexture.Get();
+
+	textureBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	textureBarrier.Transition = transition;
+
+	mCmdList->ResourceBarrier(1, &textureBarrier);
+
+	mCmdList->ClearRenderTargetView(mTextureRTVHandle, Colors::Green, 0, nullptr);
+
+	mCmdList->IASetIndexBuffer(&mIndexBufferView);
+	mCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView);
+	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	mCmdList->RSSetViewports(1, &mTextureViewport);
+	mCmdList->RSSetScissorRects(1, &mTextureScissorRect);
+
+	mCmdList->SetGraphicsRootSignature(mTextureRS.Get());
+	mCmdList->SetPipelineState(mTexturePso.Get());
+
+	mCmdList->OMSetRenderTargets(1, &mTextureRTVHandle, false, nullptr);
+
+	mCmdList->DrawIndexedInstanced(6, 512, 0, 0, 0);
+
+	transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	transition.pResource = mCloudTexture.Get();
+
+	textureBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	textureBarrier.Transition = transition;
+
+	mCmdList->ResourceBarrier(1, &textureBarrier);
+
+	mCmdList->Close();
+
+	mCmdQueue->ExecuteCommandLists(1, cmdLists);
+
+	waitGPU();
 }
 
 void Engine::Update()
@@ -274,6 +354,8 @@ void Engine::Update()
 
 			result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "vert", "vs_5_0", mTextureVS);
 			assert(result == S_OK);
+
+			std::cout << "Texture Shader Recompiled.\n";
 		}
 		if (ImGui::Button("Generate"))
 		{
@@ -516,7 +598,7 @@ void Engine::generateHardware()
 	D3D12_DESCRIPTOR_HEAP_DESC cbvsrvHeapDesc{};
 
 	cbvsrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	cbvsrvHeapDesc.NumDescriptors = 3;
+	cbvsrvHeapDesc.NumDescriptors = 4;
 	cbvsrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 	result = mDevice->CreateDescriptorHeap(&cbvsrvHeapDesc, IID_PPV_ARGS(&mCbvSrvHeap));
