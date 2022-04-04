@@ -1,2 +1,2 @@
 # RayMarching
-[Imgur](https://imgur.com/teffMZv)
+![Example](https://imgur.com/teffMZv)
