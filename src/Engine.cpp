@@ -707,7 +707,7 @@ void Engine::makeAssets()
 	//assert(result == S_OK);
 	//assert(mVertexBlob != nullptr);
 
-	result = ShaderHelper::Compile(L"RayMarch_0.hlsl", "frag", "ps_5_0", mPixelBlob);
+	result = ShaderHelper::Compile(L"RayMarch_1.hlsl", "frag", "ps_5_0", mPixelBlob);
 	//assert(result == S_OK);
 	//assert(mPixelBlob != nullptr);
 

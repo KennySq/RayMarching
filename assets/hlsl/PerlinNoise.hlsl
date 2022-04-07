@@ -137,7 +137,6 @@ float PerlinNoise(float x, float y, float z)
     
     float3 uvw = float3(fade(xf), fade(yf), fade(zf));
     
-    
     int aaa, aba, aab, abb, baa, bba, bab, bbb;
     aaa = permutation[permutation[permutation[xi] + yi] + zi];
     aba = permutation[permutation[permutation[xi] + (yi + 1)] + zi];
@@ -147,11 +146,6 @@ float PerlinNoise(float x, float y, float z)
     bba = permutation[permutation[permutation[xi + 1] + (yi + 1)] + zi];
     bab = permutation[permutation[permutation[xi + 1] + yi] + (zi + 1)];
     bbb = permutation[permutation[permutation[xi + 1] + (yi + 1)] + (zi + 1)];
-    
-    //float interp0 = lerp(Gradient(aaa, xf * rv0.x, yf * rv0.y, zf * rv0.z), Gradient(baa, (xf - 1) * rv1.x, yf * rv1.y, zf * rv1.z), uvw.x);
-    //float interp1 = lerp(Gradient(aba, xf * rv2.x, (yf - 1) * rv2.y, zf * rv2.z), Gradient(bba, (xf - 1) * rv3.x, (yf - 1) * rv3.y, zf * rv3.z), uvw.x);
-    //float interp2 = lerp(Gradient(aab, xf * rv4.x, yf * rv4.y, (zf - 1) * rv4.z), Gradient(bab, (xf - 1) * rv5.x, yf * rv5.y, (zf - 1) * rv5.z), uvw.x);
-    //float interp3 = lerp(Gradient(abb, xf * rv6.x, (yf - 1) * rv6.y, (zf - 1) * rv6.z), Gradient(bbb, (xf - 1) * rv7.x, (yf - 1) * rv7.y, (zf - 1) * rv7.z), uvw.x);
     
     float interp0 = lerp(Gradient(aaa, xf, yf, zf), Gradient(baa, (xf - 1), yf, zf), uvw.x);
     float interp1 = lerp(Gradient(aba, xf, (yf - 1), zf), Gradient(bba, (xf - 1), (yf - 1), zf), uvw.x);
