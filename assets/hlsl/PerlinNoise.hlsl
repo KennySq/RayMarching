@@ -94,11 +94,6 @@ static const int permutation[] =
 
 float PerlinNoise(float x, float y, float z)
 {
-    float xf = frac(x);
-    float yf = frac(y);
-    float zf = frac(z);
-    
-    float3 uvw = float3(fade(xf), fade(yf), fade(zf));
     
     float3 p0 = float3(x, y, z);
     float3 p1 = float3(-x, y, z);
@@ -132,9 +127,16 @@ float PerlinNoise(float x, float y, float z)
     
     float result = 0.0f;
    
-    int xi = (int) (x * 255.99f) & 255;
-    int yi = (int) (y * 255.99f) & 255;
-    int zi = (int) (z * 255.99f) & 255;
+    int xi = (int) x & 255;
+    int yi = (int) y & 255;
+    int zi = (int) z & 255;
+    
+    float xf = x - (int) x;
+    float yf = y - (int) y;
+    float zf = z - (int) z;
+    
+    float3 uvw = float3(fade(xf), fade(yf), fade(zf));
+    
     
     int aaa, aba, aab, abb, baa, bba, bab, bbb;
     aaa = permutation[permutation[permutation[xi] + yi] + zi];
@@ -146,23 +148,31 @@ float PerlinNoise(float x, float y, float z)
     bab = permutation[permutation[permutation[xi + 1] + yi] + (zi + 1)];
     bbb = permutation[permutation[permutation[xi + 1] + (yi + 1)] + (zi + 1)];
     
-    float interp0 = lerp(Gradient(aaa, xf * rv0.x, yf * rv0.y, zf * rv0.z), Gradient(baa, (xf - 1) * rv1.x, yf * rv1.y, zf * rv1.z), uvw.x);
-    float interp1 = lerp(Gradient(aba, xf * rv2.x, (yf - 1) * rv2.y, zf * rv2.z), Gradient(bba, (xf - 1) * rv3.x, (yf - 1) * rv3.y, zf * rv3.z), uvw.x);
-    float interp2 = lerp(Gradient(aab, xf * rv4.x, yf * rv4.y, (zf - 1) * rv4.z), Gradient(bab, (xf - 1) * rv5.x, yf * rv5.y, (zf - 1) * rv5.z), uvw.x);
-    float interp3 = lerp(Gradient(abb, xf * rv6.x, (yf - 1) * rv6.y, (zf - 1) * rv6.z), Gradient(bbb, (xf - 1) * rv7.x, (yf - 1) * rv7.y, (zf - 1) * rv7.z), uvw.x);
+    //float interp0 = lerp(Gradient(aaa, xf * rv0.x, yf * rv0.y, zf * rv0.z), Gradient(baa, (xf - 1) * rv1.x, yf * rv1.y, zf * rv1.z), uvw.x);
+    //float interp1 = lerp(Gradient(aba, xf * rv2.x, (yf - 1) * rv2.y, zf * rv2.z), Gradient(bba, (xf - 1) * rv3.x, (yf - 1) * rv3.y, zf * rv3.z), uvw.x);
+    //float interp2 = lerp(Gradient(aab, xf * rv4.x, yf * rv4.y, (zf - 1) * rv4.z), Gradient(bab, (xf - 1) * rv5.x, yf * rv5.y, (zf - 1) * rv5.z), uvw.x);
+    //float interp3 = lerp(Gradient(abb, xf * rv6.x, (yf - 1) * rv6.y, (zf - 1) * rv6.z), Gradient(bbb, (xf - 1) * rv7.x, (yf - 1) * rv7.y, (zf - 1) * rv7.z), uvw.x);
+    
+    float interp0 = lerp(Gradient(aaa, xf, yf, zf), Gradient(baa, (xf - 1), yf, zf), uvw.x);
+    float interp1 = lerp(Gradient(aba, xf, (yf - 1), zf), Gradient(bba, (xf - 1), (yf - 1), zf), uvw.x);
+    float interp2 = lerp(Gradient(aab, xf, yf, (zf - 1)), Gradient(bab, (xf - 1), yf, (zf - 1)), uvw.x);
+    float interp3 = lerp(Gradient(abb, xf, (yf - 1), (zf - 1)), Gradient(bbb, (xf - 1), (yf - 1), (zf - 1)), uvw.x);
     
     float avg0 = lerp(interp0, interp1, uvw.y);
     float avg1 = lerp(interp2, interp3, uvw.y);
     
-    result = (lerp(avg0, avg1, uvw.z) + 1) / 2.0;
+    result = (lerp(avg0, avg1, uvw.z) + 1) / 2;
     
     return result;
 }
 
-float OctavePerlin(float x, float y, float z, int octaves, float persistence, float frequency, float amplitude)
+float OctavePerlin(float x, float y, float z, int octaves, float persistence)
 {
     float total = 0;
     float maxValue = 0;
+    
+    float frequency = 1;
+    float amplitude = 1;
     
     for (int i = 0; i < octaves; i++)
     {
@@ -179,9 +189,26 @@ float OctavePerlin(float x, float y, float z, int octaves, float persistence, fl
 
 float4 frag(Pixel input) : SV_Target0
 {
+    const int octv = 4;
+    const int persis = 10;
+    
     float f1 = OctavePerlin(input.Texcoord.x, input.Texcoord.y,
-    1.0f / (input.TargetIndex + 1), 7, 16, 4.0, 2.0);
+     input.TargetIndex / 512.0f, octv, 128);
     
-    return f1;
+    float f2 = OctavePerlin(input.Texcoord.x, input.Texcoord.y,
+     input.TargetIndex / 512.0f, octv, 64);
     
+    float f3 = OctavePerlin(input.Texcoord.x, input.Texcoord.y,
+     input.TargetIndex / 512.0f, octv, 32);
+    
+    float f4 = OctavePerlin(input.Texcoord.x, input.Texcoord.y,
+     input.TargetIndex / 512.0f, octv, 16);
+    
+    float f5 = OctavePerlin(input.Texcoord.x, input.Texcoord.y,
+     input.TargetIndex / 512.0f, octv, 8);
+    
+    float f6 = OctavePerlin(input.Texcoord.x, input.Texcoord.y,
+     input.TargetIndex / 512.0f, octv, 4);
+
+    return (f1 + f2 + f3 + f4 + f5 + f6) / 6.0f;
 }
