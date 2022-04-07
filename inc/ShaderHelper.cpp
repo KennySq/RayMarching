@@ -15,8 +15,10 @@ HRESULT ShaderHelper::Compile(const wchar_t* path, const char* entry, const char
 	projectPath = projectPath.substr(0, projectPath.find_last_of('\\') + 1);
 	projectPath += path;
 
+	ComPtr<ID3DBlob> blob;
+
 	ID3DBlob* errBlob = nullptr;
-	HRESULT result = D3DCompileFromFile(projectPath.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, target, D3DCOMPILE_DEBUG, 0, outShader.GetAddressOf(), &errBlob);
+	HRESULT result = D3DCompileFromFile(projectPath.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, target, D3DCOMPILE_DEBUG, 0, blob.GetAddressOf(), &errBlob);
 	if (result == 0x80070003)
 	{
 		MessageBox(nullptr, L"File Not Found.", L"Error", MB_OK);
@@ -29,7 +31,15 @@ HRESULT ShaderHelper::Compile(const wchar_t* path, const char* entry, const char
 	{
 		std::wcout << "Compilation Failed!\n";
 		std::cout << reinterpret_cast<const char*>(errBlob->GetBufferPointer()) << '\n';
+		return result;
 	}
+
+	if (outShader != nullptr)
+	{
+		outShader.Reset();
+
+	}
+	outShader.Attach(blob.Detach());
 
 	return S_OK;
 
