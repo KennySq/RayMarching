@@ -63,13 +63,25 @@ void Engine::Start()
 	textureDesc.SampleDesc.Count = 1;
 	textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
+	//D3D12_RESOURCE_DESC sliceDesc{};
+
+	//sliceDesc = textureDesc;
+	//sliceDesc.DepthOrArraySize = 1;
+	//sliceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	//sliceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
 	D3D12_HEAP_PROPERTIES heapProp{};
 
 	heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
 	heapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	
+
 	result = mDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&mCloudTexture));
 	assert(result == S_OK);
+
+	mCloudTexture->SetName(L"Cloud Texture");
+
+	//result = mDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &sliceDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mCloudSliceTexture));
+	//assert(result == S_OK);
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -82,17 +94,23 @@ void Engine::Start()
 
 	previewSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	previewSrvDesc.Texture2D.MipLevels = 1;
-	previewSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+	previewSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	previewSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 	mTextureSRVHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
 	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &srvDesc, mTextureSRVHandle);
 
-	mTexturePreviewSRVHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
-	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &previewSrvDesc, mTexturePreviewSRVHandle);
+	//mTexturePreviewSRVHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
+	//mDevice->CreateShaderResourceView(mCloudSliceTexture.Get(), &previewSrvDesc, mTexturePreviewSRVHandle);
 
-	mTexturePreviewSRVGPUHandle.ptr = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
+	//mTexturePreviewSRVGPUHandle.ptr = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
 	D3D12_INPUT_LAYOUT_DESC il;
+
+	//D3D12_RANGE sliceRange{};
+	//void* slicePtr;
+	//mCloudTexture->Map(0, &sliceRange, &slicePtr);
+	//result = mCloudSliceTexture->WriteToSubresource(0, nullptr, slicePtr, 0, 0);
+	//assert(result == S_OK);
 
 	il.NumElements = ARRAYSIZE(mInputElements);
 	il.pInputElementDescs = mInputElements;
@@ -352,6 +370,7 @@ void Engine::Update()
 
 		if (ImGui::Button("Recompile Shader"))
 		{
+
 			HRESULT result = ShaderHelper::Compile(L"PerlinNoise.hlsl", "frag", "ps_5_0", mTexturePS);
 			assert(result == S_OK);
 
@@ -422,7 +441,7 @@ void Engine::Update()
 	ImGui::Begin("Variable Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
 	static float fade = 0.0f;
-	ImGui::SliderFloat("Fade", &fade, -3.0f, 3.0f, "%f", 1.0f);
+	ImGui::SliderFloat("Fade", &fade, -10.0f, 10.0f, "%f", 1.0f);
 
 	D3D12_RANGE mapRange{};
 
@@ -496,13 +515,18 @@ void Engine::Update()
 
 	mCmdList->SetGraphicsRootSignature(mRootSignature.Get());
 	mCmdList->SetGraphicsRootConstantBufferView(0, mConstantBuffer->GetGPUVirtualAddress());
+	mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
+
+	D3D12_GPU_DESCRIPTOR_HANDLE srvHandle;
+	srvHandle.ptr = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
+
+	mCmdList->SetGraphicsRootDescriptorTable(1, srvHandle);
 
 	mCmdList->OMSetRenderTargets(1, &mBackBufferHandle[mFrameIndex], false, nullptr);
 	//mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
-	mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
 
 	D3D12_GPU_DESCRIPTOR_HANDLE cbvgpuHandle = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart();
-
+	
 	mCmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
 	transition.pResource = mBackBuffer[mFrameIndex].Get();
@@ -602,15 +626,24 @@ void Engine::generateHardware()
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
 	ImGui::StyleColorsLight();
+	D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc{};
+
+	samplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+	samplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	samplerHeapDesc.NumDescriptors = 1;
+
 	D3D12_DESCRIPTOR_HEAP_DESC cbvsrvHeapDesc{};
 
 	cbvsrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	cbvsrvHeapDesc.NumDescriptors = 4;
 	cbvsrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-	result = mDevice->CreateDescriptorHeap(&cbvsrvHeapDesc, IID_PPV_ARGS(&mCbvSrvHeap));
+	result = mDevice->CreateDescriptorHeap(&samplerHeapDesc, IID_PPV_ARGS(&mSamplerHeap));
 	assert(result == S_OK);
 
+	result = mDevice->CreateDescriptorHeap(&cbvsrvHeapDesc, IID_PPV_ARGS(&mCbvSrvHeap));
+	assert(result == S_OK);
+	
 	D3D12_CPU_DESCRIPTOR_HANDLE cbvsrvCPUHandle = mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart();
 	D3D12_GPU_DESCRIPTOR_HANDLE cbvsrvGPUHandle = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart();
 
@@ -761,7 +794,6 @@ void Engine::makeAssets()
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
 	D3D12_ROOT_SIGNATURE_DESC rsDesc{};
-
 	D3D12_DESCRIPTOR_RANGE descRange{};
 
 	mRtBlendDesc.BlendEnable = false;
@@ -794,15 +826,25 @@ void Engine::makeAssets()
 	mRasterDesc.MultisampleEnable = false;
 	mRasterDesc = CD3DX12_RASTERIZER_DESC(D3D12_FILL_MODE_SOLID, D3D12_CULL_MODE_NONE, false, 0, 0, 0, true, false, false, 0, D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF);
 
-	mRootParameters[0].InitAsConstantBufferView(0);
+	D3D12_DESCRIPTOR_RANGE srvRange = CD3DX12_DESCRIPTOR_RANGE(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
-	rsDesc.NumParameters = 1;
+	mRootParameters[0].InitAsConstantBufferView(0);
+	mRootParameters[1].InitAsDescriptorTable(1, &srvRange);
+
+	D3D12_STATIC_SAMPLER_DESC samplerDesc = CD3DX12_STATIC_SAMPLER_DESC(0);
+
+	rsDesc.NumParameters = 2;
 	rsDesc.pParameters = mRootParameters;
 	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-	/*
-	rsDesc.pParameters = nullptr;
-	rsDesc.NumParameters = 0;*/
+	descRange.NumDescriptors = 1;
+	descRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+	descRange.RegisterSpace = 0;
+	descRange.OffsetInDescriptorsFromTableStart = 0;
+
+	rsDesc.NumStaticSamplers = 1;
+	rsDesc.pStaticSamplers = &samplerDesc;
+	//rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
 	ComPtr<ID3DBlob> rsBlob, errBlob;
 

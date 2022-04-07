@@ -72,6 +72,8 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mCbvSrvHeap;
 	CD3DX12_ROOT_PARAMETER mRootParameters[3]{};
 
+	ComPtr<ID3D12DescriptorHeap> mSamplerHeap;
+
 	std::fstream mShaderFile;
 
 	FileBrowser mFileBrowser;
@@ -80,6 +82,8 @@ private:
 	HWND mHandle;
 
 	ComPtr<ID3D12Resource> mCloudTexture;
+	ComPtr<ID3D12Resource> mCloudSliceTexture;
+
 	ComPtr<ID3D12PipelineState> mTexturePso;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC mTexturePsoDesc;
 	D3D12_INPUT_ELEMENT_DESC mTextureIL[3];
@@ -99,8 +103,8 @@ private:
 	ComPtr<ID3D12DescriptorHeap> mGeneralRTVHeap;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mTextureSRVHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTexturePreviewSRVHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mTexturePreviewSRVGPUHandle;
+//	D3D12_CPU_DESCRIPTOR_HANDLE mTexturePreviewSRVHandle;
+//	D3D12_GPU_DESCRIPTOR_HANDLE mTexturePreviewSRVGPUHandle;
 
 	D3D12_INDEX_BUFFER_VIEW mIndexBufferView;
 	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView;
