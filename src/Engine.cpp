@@ -441,16 +441,34 @@ void Engine::Update()
 	ImGui::Begin("Variable Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
 	static float fade = 0.0f;
-	ImGui::SliderFloat("Fade", &fade, -10.0f, 10.0f, "%f", 1.0f);
+	static float EyeX = 0.0f;
+	static float EyeY = 0.0f;
+	static float EyeZ = 2.0f;
+	static float Fov = 60.0f;
 
+	static float uv[2] = { 0.5f ,0.5f };
+	static float pos[3];
+	static float eyePos[3] = { 0.0f, 2.0f, 2.0f };
+	ImGui::SliderFloat2("UV", uv, -2.0f, 2.0f, "%.3f", 1.0f);
+	ImGui::SliderFloat3("Pos", pos, -5.0f, 5.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat3("Eye", eyePos, -5.0f, 5.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat("FOV", &Fov, 0.1f, 80.0f);
 	D3D12_RANGE mapRange{};
 
 	ConstantBufferData* cData{};
+	
 	HRESULT result = mConstantBuffer->Map(0, &mapRange, reinterpret_cast<void**>(&cData));
 	assert(result == S_OK);
 
-	cData->Fade = XMFLOAT4(fade, fade, fade, fade);
-
+	cData->UV.x = uv[0];
+	cData->UV.y = uv[1];
+	cData->PosX = pos[0];
+	cData->PosY = pos[1];
+	cData->PosZ = pos[2];
+	cData->EyeX = eyePos[0];
+	cData->EyeY = eyePos[1];
+	cData->EyeZ = eyePos[2];
+	cData->Fov = Fov;
 	mConstantBuffer->Unmap(0, nullptr);
 
 	ImGui::End();
@@ -707,7 +725,7 @@ void Engine::makeAssets()
 	//assert(result == S_OK);
 	//assert(mVertexBlob != nullptr);
 
-	result = ShaderHelper::Compile(L"RayMarch_1.hlsl", "frag", "ps_5_0", mPixelBlob);
+	result = ShaderHelper::Compile(L"RayMarch_0.hlsl", "frag", "ps_5_0", mPixelBlob);
 	//assert(result == S_OK);
 	//assert(mPixelBlob != nullptr);
 

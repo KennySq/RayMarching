@@ -18,7 +18,11 @@ public:
 private:
 	struct ConstantBufferData
 	{
-		DirectX::XMFLOAT4 Fade;
+		DirectX::XMFLOAT4 Padding;
+		float EyeX, EyeY, EyeZ;
+		float Fov;
+		DirectX::XMFLOAT2 UV;
+		float PosX, PosY, PosZ;
 	};
 
 	void generateHardware();
