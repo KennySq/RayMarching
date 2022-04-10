@@ -89,8 +89,8 @@ float march(float3 view, float3 uvw, float near, float far, float3 dir)
             accumulation += cloudSample;
         }
         
-        depth += cloudSample;
-        
+        depth += distance/cloudSample;
+    
         if (depth > far)
         {
             return far;
@@ -111,9 +111,9 @@ float4 frag(Pixel input) : SV_Target0
     //float4 cloudSample = mCloudTexture.Sample(DefaultSamplerState, worldDir);
 	
     float dist = march(eye, worldDir, 0.01f, 100.0f, dir);
-    if (dist > MAX_DISTANCE - EPSILON)
+    if (dist < EPSILON + 0.5f * 0.5f)
     {
-        return float4(0, 0, 0, 0);
+        return float4(0.3, 0.5, 1.0, 0);
     }
 	
    
