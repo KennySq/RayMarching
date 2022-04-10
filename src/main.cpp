@@ -11,6 +11,10 @@ HWND windowHandle;
 
 std::unique_ptr<Engine> engine;
 
+float currentTime;
+float dt = 0.0f;
+float apptime = 0.0f;
+
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 LRESULT WndProc(HWND handle, unsigned int msg, WPARAM wParam, LPARAM lParam)
 {
@@ -88,8 +92,12 @@ int __stdcall WinMain(HINSTANCE handleInst, HINSTANCE previousInstance, LPSTR cm
 		}
 		else
 		{
-			engine->Update();
+			currentTime = clock();
+			engine->Update(dt, apptime);
 			engine->Render();
+			dt = (clock() - currentTime) / CLOCKS_PER_SEC;
+			apptime += dt;
+
 		}
 	}
 
