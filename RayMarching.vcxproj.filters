@@ -110,5 +110,8 @@
     <None Include="assets\hlsl\PerlinNoise.hlsl">
       <Filter>Assets</Filter>
     </None>
+    <None Include="assets\hlsl\RayMarch_0.hlsl">
+      <Filter>Assets</Filter>
+    </None>
   </ItemGroup>
 </Project>

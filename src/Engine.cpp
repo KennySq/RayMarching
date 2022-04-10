@@ -232,7 +232,7 @@ void Engine::Start()
 	waitGPU();
 }
 
-void Engine::Update()
+void Engine::Update(float dt, float apptime)
 {
 	ImGui::NewFrame();
 	ImGui::SetNextWindowSize(ImVec2(400, 600));
@@ -441,18 +441,27 @@ void Engine::Update()
 	ImGui::Begin("Variable Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
 	static float fade = 0.0f;
-	static float EyeX = 0.0f;
-	static float EyeY = 0.0f;
-	static float EyeZ = 2.0f;
 	static float Fov = 60.0f;
 
 	static float uv[2] = { 0.5f ,0.5f };
 	static float pos[3];
-	static float eyePos[3] = { 0.0f, 2.0f, 2.0f };
+	static float eyePos[3] = { 0.0f, 0.0f, -2.0f };
+	static float appTime = apptime;
+	static bool bSimulate = false;
 	ImGui::SliderFloat2("UV", uv, -2.0f, 2.0f, "%.3f", 1.0f);
 	ImGui::SliderFloat3("Pos", pos, -5.0f, 5.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat3("Eye", eyePos, -5.0f, 5.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat("FOV", &Fov, 0.1f, 80.0f);
+
+	if (ImGui::RadioButton("Simulate", bSimulate))
+	{
+		bSimulate = !bSimulate;
+	}
+	if (bSimulate)
+	{
+		ImGui::Text("AppTime : %.2f", apptime);
+		appTime = apptime;
+	}
 	D3D12_RANGE mapRange{};
 
 	ConstantBufferData* cData{};
@@ -469,6 +478,7 @@ void Engine::Update()
 	cData->EyeY = eyePos[1];
 	cData->EyeZ = eyePos[2];
 	cData->Fov = Fov;
+	cData->AppTime = appTime;
 	mConstantBuffer->Unmap(0, nullptr);
 
 	ImGui::End();
@@ -725,7 +735,7 @@ void Engine::makeAssets()
 	//assert(result == S_OK);
 	//assert(mVertexBlob != nullptr);
 
-	result = ShaderHelper::Compile(L"RayMarch_0.hlsl", "frag", "ps_5_0", mPixelBlob);
+	result = ShaderHelper::Compile(L"RayMarch_1.hlsl", "frag", "ps_5_0", mPixelBlob);
 	//assert(result == S_OK);
 	//assert(mPixelBlob != nullptr);
 

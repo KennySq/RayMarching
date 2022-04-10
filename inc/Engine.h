@@ -12,7 +12,7 @@ public:
 	~Engine();
 
 	void Start();
-	void Update();
+	void Update(float dt, float apptime);
 	void Render();
 	void Release();
 private:
@@ -23,6 +23,7 @@ private:
 		float Fov;
 		DirectX::XMFLOAT2 UV;
 		float PosX, PosY, PosZ;
+		float AppTime;
 	};
 
 	void generateHardware();
