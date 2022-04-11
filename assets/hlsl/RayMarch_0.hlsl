@@ -86,7 +86,7 @@ float march(float3 view, float3 uvw, float near, float far, float3 dir)
         float discrimination = distance * cloudSample; 
         if (discrimination < EPSILON) // where pass cube sdf and cloud texture sampling
         {
-            accumulation += cloudSample;
+            accumulation += discrimination;
         }
         
         depth += distance/cloudSample;

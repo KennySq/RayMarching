@@ -438,7 +438,7 @@ void Engine::Update(float dt, float apptime)
 		ImGui::End();
 	}
 
-	ImGui::Begin("Variable Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Begin("Variable Editor", nullptr);
 
 	static float fade = 0.0f;
 	static float Fov = 60.0f;
@@ -449,8 +449,8 @@ void Engine::Update(float dt, float apptime)
 	static float appTime = apptime;
 	static bool bSimulate = false;
 	ImGui::SliderFloat2("UV", uv, -2.0f, 2.0f, "%.3f", 1.0f);
-	ImGui::SliderFloat3("Pos", pos, -5.0f, 5.0f, "%.4f", 1.0f);
-	ImGui::SliderFloat3("Eye", eyePos, -5.0f, 5.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat3("Pos", pos, -1.0f, 1.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat3("Eye", eyePos, -1.0f, 1.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat("FOV", &Fov, 0.1f, 80.0f);
 
 	if (ImGui::RadioButton("Simulate", bSimulate))
