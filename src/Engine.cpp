@@ -444,14 +444,19 @@ void Engine::Update(float dt, float apptime)
 	static float Fov = 60.0f;
 
 	static float uv[2] = { 0.5f ,0.5f };
-	static float pos[3];
-	static float eyePos[3] = { 0.0f, 0.0f, -2.0f };
+	static float pos[3] = { -3.0f, -3.0f, -3.0f };
+	static float eyePos[3] = { 3.0f, 3.0f, 3.0f };
 	static float appTime = apptime;
 	static bool bSimulate = false;
+	static float density = 0.4f;
+	static float animateSpeed = 0.0f;
+	
 	ImGui::SliderFloat2("UV", uv, -2.0f, 2.0f, "%.3f", 1.0f);
-	ImGui::SliderFloat3("Pos", pos, -1.0f, 1.0f, "%.4f", 1.0f);
-	ImGui::SliderFloat3("Eye", eyePos, -1.0f, 1.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat3("Pos", pos, -3.0f, 3.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat3("Eye", eyePos, -10.0f, 10.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat("FOV", &Fov, 0.1f, 80.0f);
+	ImGui::SliderFloat("Animate Speed", &animateSpeed, 0.0f, 1.0f);
+	ImGui::SliderFloat("Density", &density, 0.01f, 16.0f);
 
 	if (ImGui::RadioButton("Simulate", bSimulate))
 	{
@@ -460,6 +465,8 @@ void Engine::Update(float dt, float apptime)
 	if (bSimulate)
 	{
 		ImGui::Text("AppTime : %.2f", apptime);
+		ImGui::Text("Delta : %.2f", dt);
+		ImGui::Text("FPS : %.2f", CLOCKS_PER_SEC / (CLOCKS_PER_SEC * dt));
 		appTime = apptime;
 	}
 	D3D12_RANGE mapRange{};
@@ -478,7 +485,9 @@ void Engine::Update(float dt, float apptime)
 	cData->EyeY = eyePos[1];
 	cData->EyeZ = eyePos[2];
 	cData->Fov = Fov;
-	cData->AppTime = appTime;
+	cData->AnimateSpeed = animateSpeed;
+	cData->Density = density;
+	cData->AppTime = apptime;
 	mConstantBuffer->Unmap(0, nullptr);
 
 	ImGui::End();

@@ -23,6 +23,8 @@ private:
 		float Fov;
 		DirectX::XMFLOAT2 UV;
 		float PosX, PosY, PosZ;
+		float AnimateSpeed;
+		float Density;
 		float AppTime;
 	};
 
