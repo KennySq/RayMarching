@@ -58,7 +58,7 @@ void Engine::Start()
 	textureDesc.DepthOrArraySize = 512;
 	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
 	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	textureDesc.MipLevels = 1;
+	textureDesc.MipLevels = 0;
 	textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	textureDesc.SampleDesc.Count = 1;
 	textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -450,13 +450,16 @@ void Engine::Update(float dt, float apptime)
 	static bool bSimulate = false;
 	static float density = 0.4f;
 	static float animateSpeed = 0.0f;
-	
+	static float size = 1.0f;
+	static float mask = 0.0f;
 	ImGui::SliderFloat2("UV", uv, -2.0f, 2.0f, "%.3f", 1.0f);
-	ImGui::SliderFloat3("Pos", pos, -3.0f, 3.0f, "%.4f", 1.0f);
+	ImGui::SliderFloat3("Pos", pos, -10.0f, 10.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat3("Eye", eyePos, -10.0f, 10.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat("FOV", &Fov, 0.1f, 80.0f);
 	ImGui::SliderFloat("Animate Speed", &animateSpeed, 0.0f, 1.0f);
 	ImGui::SliderFloat("Density", &density, 0.01f, 16.0f);
+	ImGui::SliderFloat("Size", &size, 1.0f, 10.0f);
+	ImGui::SliderFloat("Mask", &mask, 0.0f, 10.0f);
 
 	if (ImGui::RadioButton("Simulate", bSimulate))
 	{
@@ -488,6 +491,9 @@ void Engine::Update(float dt, float apptime)
 	cData->AnimateSpeed = animateSpeed;
 	cData->Density = density;
 	cData->AppTime = apptime;
+	cData->Size = size;
+	cData->Mask = mask;
+
 	mConstantBuffer->Unmap(0, nullptr);
 
 	ImGui::End();

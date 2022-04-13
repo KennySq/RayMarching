@@ -26,6 +26,8 @@ private:
 		float AnimateSpeed;
 		float Density;
 		float AppTime;
+		float Size;
+		float Mask;
 	};
 
 	void generateHardware();
