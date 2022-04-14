@@ -28,6 +28,8 @@ private:
 		float AppTime;
 		float Size;
 		float Mask;
+		float Emission;
+		int MaxSteps;
 	};
 
 	void generateHardware();

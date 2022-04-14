@@ -1,4 +1,3 @@
-#define MAX_STEPS 16
 #define EPSILON 0.001f
 #define MAX_DISTANCE 10000.0f
 
@@ -16,6 +15,8 @@ cbuffer Constants : register(b0)
     float AppTime;
     float Size;
     float Mask;
+    float Emission;
+    int MaxSteps;
 }
 
 static const float3 gLightPosition = float3(-50, 100, -100);
@@ -41,6 +42,7 @@ float sdfScene(float3 samplePoint, float size)
     float sphereDist = sdfSphere(samplePoint, float3(0, 0, 0), size);
 	
     return min(cube0, sphereDist);
+    //return sdfSmooth(cube0, sphereDist, 5.0f);
 }
 
 float4x4 generateView(float3 eye, float3 at, float3 up)
@@ -71,36 +73,43 @@ float4x4 generateView(float3 eye, float3 at, float3 up)
 float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, float near, float far, float size)
 {
     float depth = near;
-    float stepUnit = 1.0f / MAX_STEPS;
+    float stepUnit = 1.0f / MaxSteps;
     float absorption = 0.0f;
-    float absorptionSigma = 0.0f;
-    
-    [unroll(MAX_STEPS)]
-    for (int i = 0; i < MAX_STEPS; i++)
+    float transmitted = 0.0f;
+    float scattered = 0.0f;
+    float emission = 0.0f;
+    float albedo = 0.0f; // pi
+    float total = 0.0f;
+    [unroll(32)]
+    for (int i = 0; i < MaxSteps; i++)
     {
         float3 samplePoint = viewPos + (depth * rayDir);
+        float sceneDist = sdfScene(samplePoint, size);
+
+		if(sceneDist >= MAX_DISTANCE)
+        {
+			break;    
+        }
+
         float3 texSample = samplePoint * stepUnit;
         texSample.x += 0.5f;
         texSample.y += 0.5f;
         texSample.z += AppTime * AnimateSpeed;
         
         float cloudSample = mCloudTexture.Sample(DefaultSamplerState, texSample).x;
-        float cloudDensity = pow(cloudSample, Density);
-        float sceneDist = sdfScene(samplePoint, size);
-        
-        absorptionSigma += cloudDensity * Mask;
-        depth += max(sceneDist, cloudDensity) ;
 
-        absorption = exp(-(absorptionSigma * stepUnit * depth));
+		float cloudDensity = pow(cloudSample, Density);
+
         
-        if (depth > far)
-        {
-            return far;
-        }
+        absorption += cloudDensity;
         
+        depth += max(sceneDist, cloudDensity);
+
+        total = exp(-(absorption * stepUnit * depth));
     }
     
-    return absorption;
+    
+    return total;
 }
 
 float4 frag(Pixel input) : SV_Target0
@@ -112,18 +121,21 @@ float4 frag(Pixel input) : SV_Target0
     float3 dir = GetRayDirection(eye, Fov, fragCoord);
     float3 worldDir = mul(dir, (float3x3) viewMat);
     float3 lightDir = normalize(gLightPosition - float3(PosX, PosY, PosZ));
-    float3 cloudColor = float3(0.6, 0.5f, 0.2);
+    //float4 cloudColor = float4(0.6f, 0.5f, 0.2f, 1.0f);
+    float4 cloudColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
     float size = Size;
 
     float dist = Cloud(worldDir, eye, dir, lightDir, 0.01f, MAX_DISTANCE, size);
 	
     float4 background = float4(0.4, 0.5, 0.8f, 1.0f);
-	
-    if (dist > MAX_DISTANCE - EPSILON)
-    {
-        return background;
-    }
-    float4 retColor = max(dist.xxxx, background);
+    //float4 cloudColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    //if (dist > MAX_DISTANCE - EPSILON)
+    //{
+    //    return background;
+    //}
+    float4 retColor = dist.xxxx * cloudColor;
+   // float4 retColor = max(dist.xxxx, background);
+  //  float4 retColor = dist.xxxx;
 
     return retColor;
 }

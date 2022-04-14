@@ -63,13 +63,6 @@ void Engine::Start()
 	textureDesc.SampleDesc.Count = 1;
 	textureDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-	//D3D12_RESOURCE_DESC sliceDesc{};
-
-	//sliceDesc = textureDesc;
-	//sliceDesc.DepthOrArraySize = 1;
-	//sliceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	//sliceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
 	D3D12_HEAP_PROPERTIES heapProp{};
 
 	heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -79,9 +72,6 @@ void Engine::Start()
 	assert(result == S_OK);
 
 	mCloudTexture->SetName(L"Cloud Texture");
-
-	//result = mDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &sliceDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&mCloudSliceTexture));
-	//assert(result == S_OK);
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -452,6 +442,14 @@ void Engine::Update(float dt, float apptime)
 	static float animateSpeed = 0.0f;
 	static float size = 1.0f;
 	static float mask = 0.0f;
+	static float emission = 0.0f;
+	static int maxSteps = 8;
+	if (ImGui::BeginCombo("Presets", "Presets"))
+	{
+		
+		ImGui::EndCombo();
+	}
+
 	ImGui::SliderFloat2("UV", uv, -2.0f, 2.0f, "%.3f", 1.0f);
 	ImGui::SliderFloat3("Pos", pos, -10.0f, 10.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat3("Eye", eyePos, -10.0f, 10.0f, "%.4f", 1.0f);
@@ -460,7 +458,8 @@ void Engine::Update(float dt, float apptime)
 	ImGui::SliderFloat("Density", &density, 0.01f, 16.0f);
 	ImGui::SliderFloat("Size", &size, 1.0f, 10.0f);
 	ImGui::SliderFloat("Mask", &mask, 0.0f, 10.0f);
-
+	ImGui::SliderFloat("Emission", &emission, 0.0f, 10.0f, "%.4f", 1.0f);
+	ImGui::SliderInt("Max Steps", &maxSteps, 1, 32);
 	if (ImGui::RadioButton("Simulate", bSimulate))
 	{
 		bSimulate = !bSimulate;
@@ -493,6 +492,8 @@ void Engine::Update(float dt, float apptime)
 	cData->AppTime = apptime;
 	cData->Size = size;
 	cData->Mask = mask;
+	cData->Emission = emission;
+	cData->MaxSteps = maxSteps;
 
 	mConstantBuffer->Unmap(0, nullptr);
 
