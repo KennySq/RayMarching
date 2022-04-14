@@ -41,8 +41,11 @@ float sdfScene(float3 samplePoint, float size)
     float cube0 = sdfCube(samplePoint - float3(PosX, PosY, PosZ), size);
     float sphereDist = sdfSphere(samplePoint, float3(0, 0, 0), size);
 	
-    return min(cube0, sphereDist);
-    //return sdfSmooth(cube0, sphereDist, 5.0f);
+  // return min(cube0, sphereDist);
+    return sdfSmooth(cube0, sphereDist, 2.0f);
+ //return sphereDist;
+
+
 }
 
 float4x4 generateView(float3 eye, float3 at, float3 up)
@@ -70,6 +73,7 @@ float4x4 generateView(float3 eye, float3 at, float3 up)
 //    return float3(x, y, z);
 //}
 
+
 float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, float near, float far, float size)
 {
     float depth = near;
@@ -80,7 +84,8 @@ float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, floa
     float emission = 0.0f;
     float albedo = 0.0f; // pi
     float total = 0.0f;
-    [unroll(32)]
+
+    [unroll(16)]
     for (int i = 0; i < MaxSteps; i++)
     {
         float3 samplePoint = viewPos + (depth * rayDir);
@@ -95,20 +100,24 @@ float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, floa
         texSample.x += 0.5f;
         texSample.y += 0.5f;
         texSample.z += AppTime * AnimateSpeed;
-        
-        float cloudSample = mCloudTexture.Sample(DefaultSamplerState, texSample).x;
 
+        float cloudSample = mCloudTexture.Sample(DefaultSamplerState, texSample).x;
 		float cloudDensity = pow(cloudSample, Density);
 
-        
+		depth += max(sceneDist, cloudDensity);
+        if(depth > far)
+        {
+            break;
+        }
         absorption += cloudDensity;
-        
-        depth += max(sceneDist, cloudDensity);
 
         total = exp(-(absorption * stepUnit * depth));
+
+        if(total < EPSILON)
+        {
+            break;
+        }
     }
-    
-    
     return total;
 }
 
@@ -134,7 +143,7 @@ float4 frag(Pixel input) : SV_Target0
     //    return background;
     //}
     float4 retColor = dist.xxxx * cloudColor;
-   // float4 retColor = max(dist.xxxx, background);
+    //float4 retColor = max(dist.xxxx, background);
   //  float4 retColor = dist.xxxx;
 
     return retColor;
