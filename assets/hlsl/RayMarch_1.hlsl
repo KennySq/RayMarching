@@ -1,5 +1,5 @@
 #define EPSILON 0.001f
-#define MAX_DISTANCE 10000.0f
+#define MAX_DISTANCE 100000.0f
 
 #include "Essentials.hlsli"
 
@@ -32,7 +32,7 @@ struct Pixel
 
 float sdfSmooth(float a, float b, float k)
 {
-    float res = exp(-k * a) + exp(-k * b);
+    float res = exp(-k * a) + exp(-k * b); 
     return -log(max(0.0001, res)) / k;
 }
 
@@ -41,11 +41,8 @@ float sdfScene(float3 samplePoint, float size)
     float cube0 = sdfCube(samplePoint - float3(PosX, PosY, PosZ), size);
     float sphereDist = sdfSphere(samplePoint, float3(0, 0, 0), size);
 	
-  // return min(cube0, sphereDist);
-    return sdfSmooth(cube0, sphereDist, 2.0f);
- //return sphereDist;
-
-
+    return min(cube0, sphereDist);
+    //return sdfSmooth(cube0, sphereDist, );
 }
 
 float4x4 generateView(float3 eye, float3 at, float3 up)
@@ -61,18 +58,17 @@ float4x4 generateView(float3 eye, float3 at, float3 up)
 		float4(0, 0, 0, 1));
 }
 
-//float3 ApproximateNormal(float3 samplePoint)
-//{
-//    float x = sdfScene(float3(samplePoint.x + EPSILON, samplePoint.y, samplePoint.z))
-//						 - sdfScene(float3(samplePoint.x - EPSILON, samplePoint.y, samplePoint.z));
-//    float y = sdfScene(float3(samplePoint.x, samplePoint.y + EPSILON, samplePoint.z))
-//						 - sdfScene(float3(samplePoint.x, samplePoint.y - EPSILON, samplePoint.z));
-//    float z = sdfScene(float3(samplePoint.x, samplePoint.y, samplePoint.z + EPSILON))
-//						 - sdfScene(float3(samplePoint.x, samplePoint.y, samplePoint.z - EPSILON));
+float3 ApproximateNormal(float3 samplePoint, float size)
+{
+    float x = sdfScene(float3(samplePoint.x + EPSILON, samplePoint.y, samplePoint.z), size)
+						 - sdfScene(float3(samplePoint.x - EPSILON, samplePoint.y, samplePoint.z), size);
+    float y = sdfScene(float3(samplePoint.x, samplePoint.y + EPSILON, samplePoint.z), size)
+						 - sdfScene(float3(samplePoint.x, samplePoint.y - EPSILON, samplePoint.z), size);
+    float z = sdfScene(float3(samplePoint.x, samplePoint.y, samplePoint.z + EPSILON), size)
+						 - sdfScene(float3(samplePoint.x, samplePoint.y, samplePoint.z - EPSILON), size);
 
-//    return float3(x, y, z);
-//}
-
+    return float3(x, y, z);
+}
 
 float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, float near, float far, float size)
 {
@@ -84,8 +80,8 @@ float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, floa
     float emission = 0.0f;
     float albedo = 0.0f; // pi
     float total = 0.0f;
-
-    [unroll(16)]
+    
+    [unroll(64)]
     for (int i = 0; i < MaxSteps; i++)
     {
         float3 samplePoint = viewPos + (depth * rayDir);
@@ -95,29 +91,22 @@ float Cloud(float3 rayDir, float3 viewPos, float3 viewDir, float3 lightDir, floa
         {
 			break;    
         }
-
+        
         float3 texSample = samplePoint * stepUnit;
-        texSample.x += 0.5f;
-        texSample.y += 0.5f;
+        texSample.x += UV.x;
+        texSample.y += UV.y;
         texSample.z += AppTime * AnimateSpeed;
-
+        
         float cloudSample = mCloudTexture.Sample(DefaultSamplerState, texSample).x;
-		float cloudDensity = pow(cloudSample, Density);
+        float cloudDensity = pow(abs(cloudSample), Density);
 
-		depth += max(sceneDist, cloudDensity);
-        if(depth > far)
-        {
-            break;
-        }
         absorption += cloudDensity;
+        
+        depth += max(sceneDist, cloudDensity);
 
         total = exp(-(absorption * stepUnit * depth));
-
-        if(total < EPSILON)
-        {
-            break;
-        }
     }
+    
     return total;
 }
 
@@ -130,21 +119,13 @@ float4 frag(Pixel input) : SV_Target0
     float3 dir = GetRayDirection(eye, Fov, fragCoord);
     float3 worldDir = mul(dir, (float3x3) viewMat);
     float3 lightDir = normalize(gLightPosition - float3(PosX, PosY, PosZ));
-    //float4 cloudColor = float4(0.6f, 0.5f, 0.2f, 1.0f);
     float4 cloudColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
     float size = Size;
 
     float dist = Cloud(worldDir, eye, dir, lightDir, 0.01f, MAX_DISTANCE, size);
 	
     float4 background = float4(0.4, 0.5, 0.8f, 1.0f);
-    //float4 cloudColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
-    //if (dist > MAX_DISTANCE - EPSILON)
-    //{
-    //    return background;
-    //}
-    float4 retColor = dist.xxxx * cloudColor;
-    //float4 retColor = max(dist.xxxx, background);
-  //  float4 retColor = dist.xxxx;
-
+    float4 retColor = max(dist.xxxx, background);
+   // float4 retColor = dist * cloudColor;
     return retColor;
 }
