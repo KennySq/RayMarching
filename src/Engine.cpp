@@ -6,6 +6,8 @@
 
 #include"FileBrowser.h"
 
+#define NOISE_SIZE 128
+
 using namespace DirectX;
 
 Engine::Engine(HWND hWnd, unsigned int width, unsigned int height)
@@ -29,15 +31,15 @@ void Engine::Start()
 	mMainViewport.Height = static_cast<float>(mHeight);
 	mMainViewport.MaxDepth = 1.0f;
 
-	mTextureViewport.Width = static_cast<float>(512);
-	mTextureViewport.Height = static_cast<float>(512);
+	mTextureViewport.Width = static_cast<float>(NOISE_SIZE);
+	mTextureViewport.Height = static_cast<float>(NOISE_SIZE);
 	mTextureViewport.MaxDepth = 1.0f;
 
 	mMainScissorRect.right = mWidth;
 	mMainScissorRect.bottom = mHeight;
 
-	mTextureScissorRect.right = 512;
-	mTextureScissorRect.bottom = 512;
+	mTextureScissorRect.right = NOISE_SIZE;
+	mTextureScissorRect.bottom = NOISE_SIZE;
 
 	SRV_HEAP_INCREMENT = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	RTV_HEAP_INCREMENT = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -53,9 +55,9 @@ void Engine::Start()
 
 	D3D12_RESOURCE_DESC textureDesc{};
 
-	textureDesc.Width = 512;
-	textureDesc.Height = 512;
-	textureDesc.DepthOrArraySize = 512;
+	textureDesc.Width = NOISE_SIZE;
+	textureDesc.Height = NOISE_SIZE;
+	textureDesc.DepthOrArraySize = NOISE_SIZE;
 	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
 	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	textureDesc.MipLevels = 0;
@@ -90,17 +92,7 @@ void Engine::Start()
 	mTextureSRVHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 2);
 	mDevice->CreateShaderResourceView(mCloudTexture.Get(), &srvDesc, mTextureSRVHandle);
 
-	//mTexturePreviewSRVHandle.ptr += mCbvSrvHeap->GetCPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
-	//mDevice->CreateShaderResourceView(mCloudSliceTexture.Get(), &previewSrvDesc, mTexturePreviewSRVHandle);
-
-	//mTexturePreviewSRVGPUHandle.ptr = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart().ptr + (SRV_HEAP_INCREMENT * 3);
 	D3D12_INPUT_LAYOUT_DESC il;
-
-	//D3D12_RANGE sliceRange{};
-	//void* slicePtr;
-	//mCloudTexture->Map(0, &sliceRange, &slicePtr);
-	//result = mCloudSliceTexture->WriteToSubresource(0, nullptr, slicePtr, 0, 0);
-	//assert(result == S_OK);
 
 	il.NumElements = ARRAYSIZE(mInputElements);
 	il.pInputElementDescs = mInputElements;
@@ -158,7 +150,7 @@ void Engine::Start()
 
 	textureRTVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	textureRTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE3D;
-	textureRTVDesc.Texture3D.WSize = 512;
+	textureRTVDesc.Texture3D.WSize = NOISE_SIZE;
 
 	mTextureRTVHandle = mGeneralRTVHeap->GetCPUDescriptorHandleForHeapStart();
 
@@ -190,8 +182,6 @@ void Engine::Start()
 
 	mCmdList->ResourceBarrier(1, &textureBarrier);
 
-	//mCmdList->ClearRenderTargetView(mTextureRTVHandle, Colors::Green, 0, nullptr);
-
 	mCmdList->IASetIndexBuffer(&mIndexBufferView);
 	mCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView);
 	mCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -204,7 +194,7 @@ void Engine::Start()
 
 	mCmdList->OMSetRenderTargets(1, &mTextureRTVHandle, false, nullptr);
 
-	mCmdList->DrawIndexedInstanced(6, 512, 0, 0, 0);
+	mCmdList->DrawIndexedInstanced(6, NOISE_SIZE, 0, 0, 0);
 
 	transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
@@ -275,8 +265,6 @@ void Engine::Update(float dt, float apptime)
 		if (ImGui::Button("Open File"))
 		{
 			bOpenBrowser = !bOpenBrowser;
-
-
 		}
 		if (ImGui::InputTextMultiline("Editor", buffer, 8192, ImVec2(800, 500), ImGuiInputTextFlags_AllowTabInput))
 		{
@@ -406,7 +394,7 @@ void Engine::Update(float dt, float apptime)
 
 			mCmdList->OMSetRenderTargets(1, &mTextureRTVHandle, false, nullptr);
 			
-			mCmdList->DrawIndexedInstanced(6, 512, 0, 0, 0);
+			mCmdList->DrawIndexedInstanced(6, NOISE_SIZE, 0, 0, 0);
 
 			transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 			transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
@@ -441,7 +429,6 @@ void Engine::Update(float dt, float apptime)
 	static float density = 0.4f;
 	static float animateSpeed = 0.0f;
 	static float size = 1.0f;
-	static float mask = 0.0f;
 	static float emission = 0.0f;
 	static int maxSteps = 8;
 	if (ImGui::BeginCombo("Presets", "Presets"))
@@ -455,22 +442,14 @@ void Engine::Update(float dt, float apptime)
 	ImGui::SliderFloat3("Eye", eyePos, -10.0f, 10.0f, "%.4f", 1.0f);
 	ImGui::SliderFloat("FOV", &Fov, 0.1f, 80.0f);
 	ImGui::SliderFloat("Animate Speed", &animateSpeed, 0.0f, 1.0f);
-	ImGui::SliderFloat("Density", &density, 0.01f, 16.0f);
+	ImGui::SliderFloat("Density", &density, 0.01f, 6.0f);
 	ImGui::SliderFloat("Size", &size, 1.0f, 10.0f);
-	ImGui::SliderFloat("Mask", &mask, 0.0f, 10.0f);
 	ImGui::SliderFloat("Emission", &emission, 0.0f, 10.0f, "%.4f", 1.0f);
-	ImGui::SliderInt("Max Steps", &maxSteps, 1, 32);
-	if (ImGui::RadioButton("Simulate", bSimulate))
-	{
-		bSimulate = !bSimulate;
-	}
-	if (bSimulate)
-	{
-		ImGui::Text("AppTime : %.2f", apptime);
-		ImGui::Text("Delta : %.2f", dt);
-		ImGui::Text("FPS : %.2f", CLOCKS_PER_SEC / (CLOCKS_PER_SEC * dt));
-		appTime = apptime;
-	}
+	ImGui::SliderInt("Max Steps", &maxSteps, 16, NOISE_SIZE);
+	ImGui::Text("AppTime : %.2f", apptime);
+	ImGui::Text("Delta : %.2f", dt);
+	ImGui::Text("FPS : %.2f", CLOCKS_PER_SEC / (CLOCKS_PER_SEC * dt));
+	appTime = apptime;
 	D3D12_RANGE mapRange{};
 
 	ConstantBufferData* cData{};
@@ -491,7 +470,6 @@ void Engine::Update(float dt, float apptime)
 	cData->Density = density;
 	cData->AppTime = apptime;
 	cData->Size = size;
-	cData->Mask = mask;
 	cData->Emission = emission;
 	cData->MaxSteps = maxSteps;
 
@@ -536,15 +514,15 @@ void Engine::Update(float dt, float apptime)
 	mMainViewport.Height = static_cast<float>(mHeight);
 	mMainViewport.MaxDepth = 1.0f;
 
-	mTextureViewport.Width = static_cast<float>(512);
-	mTextureViewport.Height = static_cast<float>(512);
+	mTextureViewport.Width = static_cast<float>(NOISE_SIZE);
+	mTextureViewport.Height = static_cast<float>(NOISE_SIZE);
 	mTextureViewport.MaxDepth = 1.0f;
 
 	mMainScissorRect.right = mWidth;
 	mMainScissorRect.bottom = mHeight;
 
-	mTextureScissorRect.right = 512;
-	mTextureScissorRect.bottom = 512;
+	mTextureScissorRect.right = NOISE_SIZE;
+	mTextureScissorRect.bottom = NOISE_SIZE;
 
 	mCmdList->RSSetViewports(1, &mMainViewport);
 	mCmdList->RSSetScissorRects(1, &mMainScissorRect);
@@ -567,7 +545,6 @@ void Engine::Update(float dt, float apptime)
 	mCmdList->SetGraphicsRootDescriptorTable(1, srvHandle);
 
 	mCmdList->OMSetRenderTargets(1, &mBackBufferHandle[mFrameIndex], false, nullptr);
-	//mCmdList->SetDescriptorHeaps(1, mCbvSrvHeap.GetAddressOf());
 
 	D3D12_GPU_DESCRIPTOR_HANDLE cbvgpuHandle = mCbvSrvHeap->GetGPUDescriptorHandleForHeapStart();
 	
@@ -585,12 +562,7 @@ void Engine::Update(float dt, float apptime)
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCmdList.Get());
 
 	mCmdList->ResourceBarrier(1, &mBackBufferBarrier);
-
-
-
 	mCmdList->Close();
-
-
 }
 
 void Engine::Render()
